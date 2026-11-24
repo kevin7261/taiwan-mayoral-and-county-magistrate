@@ -1,5 +1,5 @@
 // 政黨顏色
-export const COLOR = { kmt: '#2171b5', dpp: '#238b45', tpp: '#28c8c8', ind: '#8c8c8c', pfp: '#f07c1b', np: '#e8c21a', csdp: '#b07aa1', cyp: '#8c564b', nnc: '#7b5ea7' }
+export const COLOR = { kmt: '#1f6fe0', dpp: '#1e9e55', tpp: '#28c8c8', ind: '#8e8e93', pfp: '#f0882d', np: '#e6bd32', csdp: '#c77fb3', cyp: '#a2785c', nnc: '#8f7bd6' }
 // 2010-12-25 縣市合併的三個（合併前縣、市各一欄）；新北、桃園是升格，前後同一欄
 export const MERGED = ['臺中市', '臺南市', '高雄市']
 export const MERGE_DAY = '2010-12-25'
@@ -13,7 +13,7 @@ export function yr(d) {
 export const ymd = (d, asOf) => (d === asOf ? '現任' : (/^(19|20)/.test(d) ? `’${d.slice(2)}` : d).replaceAll('-', '.'))
 
 // 黨籍不詳（官派、縣轄市時期有些表沒寫黨籍）
-export const UNKNOWN = '#6b6b6b'
+export const UNKNOWN = '#5a5a5e'
 export const colorOf = (t) => COLOR[t.party] ?? UNKNOWN
 // 格子上名字旁邊的註記：非民選（官派、戰地政務）、代理、補選
 export const tagsOf = (t) => [t.note, t.acting && '代理', t.by && '補選'].filter(Boolean)

@@ -1,16 +1,23 @@
-/* 整頁固定深色：圖例、格子的配色以深底為準 */
+/* 整頁固定深色。配色照 Apple／Google 深色介面的做法：中性的灰階一層比一層亮，不帶色偏；
+   介面本身不用彩色（選到的＝白／亮灰），畫面上的顏色都留給政黨（parties.js） */
 :root {
-  --bg: #161616;
-  --text: #ecebe7;
-  --muted: #c9c8c3;
-  --dim: #b0afaa;
-  --line: #2e302e;
-  --accent: #5fb7bf;
-  --chrome: #1f2120; /* 表頭列、上下兩條 */
+  --bg: #0e0e0f; /* 最底下 */
+  --chrome: #1c1c1e; /* 標題列、表頭列、頁尾 */
+  --elev: #2c2c2e; /* 浮在上面的：工具列、卡片 */
+  --line: #3a3a3c; /* 分隔線、框 */
+  --text: #f5f5f7;
+  --muted: #aeaeb2;
+  --dim: #8e8e93;
+  --accent: #f5f5f7; /* 選到的：白 */
+  --accent-soft: rgba(255, 255, 255, 0.16);
+  --ev: #ffd60a; /* 大事：政治事件 */
+  --ev-up: #64d2ff; /* 大事：縣市升格／改制 */
+  --shade: 14, 14, 15; /* 底色的 RGB：壓暗、斜線用 */
   --grid: rgba(255, 255, 255, 0.09); /* 格線 */
-  --grid-strong: rgba(255, 255, 255, 0.28); /* 凍結線 */
-  --panel-w: 320px;
-  --font: 'Overpass', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'PingFang TC', sans-serif;
+  --grid-strong: rgba(255, 255, 255, 0.26); /* 凍結線 */
+  --radius: 12px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --font: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'PingFang TC', sans-serif;
   font-family: var(--font);
   /* Bootstrap：字型、底色、主色接過來 */
   --bs-body-font-family: var(--font);
@@ -20,36 +27,44 @@
   color: var(--text);
   background: var(--bg);
   color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
 }
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; }
+#app { height: 100dvh; } /* 手機：扣掉瀏覽器的網址列 */
+body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; background: var(--bg); }
 a { color: inherit; text-decoration: none; }
 
 /* Google Material Symbols：跟字一樣高、對齊中間 */
 .material-symbols-outlined { font-size: 18px; line-height: 1; vertical-align: middle; user-select: none; }
 
-/* Bootstrap 元件：小一號，主色用這一頁的青色 */
-.btn-sm, .btn-group-sm > .btn { --bs-btn-padding-y: 1px; --bs-btn-padding-x: 7px; --bs-btn-font-size: 12px; --bs-btn-border-radius: 5px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
-.btn-outline-secondary { --bs-btn-color: var(--muted); --bs-btn-border-color: #44474a; --bs-btn-hover-bg: rgba(255, 255, 255, 0.1); --bs-btn-hover-border-color: #6a6d70; --bs-btn-hover-color: var(--text); --bs-btn-active-bg: var(--accent); --bs-btn-active-border-color: var(--accent); --bs-btn-active-color: var(--bg); --bs-btn-disabled-color: #777; --bs-btn-disabled-border-color: #3a3c3b; }
-/* 工具列的按鈕：扁平（沒有框），滑鼠移上去才有底色，開著的＝青色 */
-.btn-tb { --bs-btn-padding-y: 3px; --bs-btn-padding-x: 7px; --bs-btn-border-radius: 6px; --bs-btn-color: var(--text); --bs-btn-bg: transparent; --bs-btn-border-color: transparent; --bs-btn-hover-color: #fff; --bs-btn-hover-bg: rgba(255, 255, 255, 0.1); --bs-btn-hover-border-color: transparent; --bs-btn-active-color: var(--accent); --bs-btn-active-bg: rgba(95, 183, 191, 0.2); --bs-btn-active-border-color: transparent; --bs-btn-disabled-color: #6c6f70; --bs-btn-disabled-border-color: transparent; }
+/* Bootstrap 元件：小一號，選到的＝白 */
+.btn-sm, .btn-group-sm > .btn { --bs-btn-padding-y: 1px; --bs-btn-padding-x: 7px; --bs-btn-font-size: 12px; --bs-btn-border-radius: 8px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-weight: 500; }
+.btn-outline-secondary { --bs-btn-color: var(--muted); --bs-btn-border-color: var(--line); --bs-btn-hover-bg: rgba(255, 255, 255, 0.07); --bs-btn-hover-border-color: #545456; --bs-btn-hover-color: var(--text); --bs-btn-active-bg: var(--accent); --bs-btn-active-border-color: var(--accent); --bs-btn-active-color: var(--bg); --bs-btn-disabled-color: var(--dim); --bs-btn-disabled-border-color: var(--line); }
+/* 工具列的按鈕：扁平（沒有框），滑鼠移上去才有底色，開著的＝亮灰底、白字 */
+.btn-tb { --bs-btn-padding-y: 4px; --bs-btn-padding-x: 9px; --bs-btn-border-radius: 8px; --bs-btn-color: var(--muted); --bs-btn-bg: transparent; --bs-btn-border-color: transparent; --bs-btn-hover-color: var(--text); --bs-btn-hover-bg: rgba(255, 255, 255, 0.07); --bs-btn-hover-border-color: transparent; --bs-btn-active-color: #fff; --bs-btn-active-bg: var(--accent-soft); --bs-btn-active-border-color: transparent; --bs-btn-disabled-color: #5a5a5e; --bs-btn-disabled-border-color: transparent; transition: background-color 0.15s, color 0.15s; }
 .btn-tb .material-symbols-outlined { font-size: 20px; }
-.form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
-.form-check-input:focus, .form-range:focus::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(95, 183, 191, 0.25); border-color: var(--accent); }
+/* 按鈕的效果跟縣市長的格子（.blk）一樣，只有圓角維持按鈕原本的 8px：平的底色、上緣一條亮邊；
+   滑鼠移上去放大 12%、變亮 15%、浮起來（同樣的陰影、同樣 0.12 秒） */
+.btn-tb { --bs-btn-border-radius: 8px; --bs-btn-border-width: 0; --bs-btn-bg: #3a3a3c; --bs-btn-hover-bg: #3a3a3c; --bs-btn-active-bg: #636366; --bs-btn-disabled-bg: #303032; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); transition: transform 0.12s ease-out, filter 0.12s, box-shadow 0.12s; }
+.btn-tb:hover:not(:disabled) { z-index: 1; transform: scale(1.12); filter: brightness(1.15); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 8px 22px rgba(0, 0, 0, 0.6); }
+.btn-tb.active { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
+.btn-tb.active:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 8px 22px rgba(0, 0, 0, 0.6); }
+.btn-tb:disabled { opacity: 1; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+.btn:focus-visible { box-shadow: 0 0 0 3px var(--accent-soft); }
+.form-range { --bs-secondary-bg: #48484a; }
+.form-range:focus::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--accent-soft); }
 .form-range::-webkit-slider-thumb { background-color: var(--accent); }
+.form-range::-webkit-slider-runnable-track { background-color: #48484a; }
 .form-range::-moz-range-thumb { background-color: var(--accent); }
-
-/* 圖例的一列：色塊＋說明＋右邊的數字 */
-.lg-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 12px; }
-.lg-swatch { flex: none; width: 18px; height: 12px; border-radius: 2px; }
-.lg-stat { margin-left: auto; padding-left: 8px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.form-range::-moz-range-track { background-color: #48484a; }
 
 /* ── 工具列（編年表、地圖兩個分頁都有；Bootstrap 的 btn、vr、form-range）：一條圓角的底，裡面是扁平的按鈕，一組一組用直線隔開 */
-.toolbar { flex: none; display: flex; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--bg); font-size: 12px; }
-.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; width: fit-content; max-width: 100%; padding: 3px 8px; border-radius: 999px; background: var(--chrome); box-shadow: inset 0 0 0 1px var(--line); }
-.tb-grp { display: flex; align-items: center; gap: 2px; }
-.ctl .vr { align-self: center; height: 18px; margin: 0 2px; color: #fff; }
+.toolbar { flex: none; display: flex; align-items: center; padding: 8px 12px; background: var(--bg); font-size: 12px; }
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; width: fit-content; max-width: 100%; padding: 4px 6px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--chrome); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); }
+.tb-grp { display: flex; align-items: center; gap: 4px; }
+.ctl .vr { align-self: center; height: 18px; margin: 0 4px; color: var(--muted); opacity: 0.25; }
 .ctl .form-range { width: 110px; margin: 0 4px; }
 .pct { min-width: 40px; padding-right: 4px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
 /* 手機版面：有圖示的按鈕只留圖示；工具列不換行，放不下用滑的 */
@@ -64,27 +79,40 @@ a { color: inherit; text-decoration: none; }
 
 /* ── 編年表的樣子（地圖分頁左邊的時間軸也用）：欄名、年份、大事、格子 */
 .head { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; border-right: 1px solid var(--grid); text-align: center; font-size: 1.09em; line-height: 1.2; white-space: nowrap; }
-.head b { font-weight: 600; }
-.head .subs { display: flex; color: #999; font-size: 0.83em; }
+.head b { font-weight: 600; letter-spacing: 0.02em; }
+.head .subs { display: flex; color: var(--dim); font-size: 0.83em; }
 .head .subs span { flex: 1; }
 .heads .head b, .heads .subs span { cursor: pointer; }
 .heads .head b:hover, .heads .subs span:hover { color: var(--accent); }
-.year { position: absolute; left: 0; transform: translateY(-50%); color: #888; font-size: 0.91em; text-align: center; font-variant-numeric: tabular-nums; }
+.year { position: absolute; left: 0; transform: translateY(-50%); color: var(--dim); font-size: 0.91em; text-align: center; font-variant-numeric: tabular-nums; }
 .leads { position: absolute; top: 0; overflow: visible; }
-.leads path { fill: none; stroke: rgba(255, 221, 120, 0.7); stroke-width: 1; }
-.ev { position: absolute; transform: translateY(-50%); padding-left: 1em; color: #ffdd78; line-height: 1.2; white-space: nowrap; }
-.ev.up { color: #9fd6dc; } /* 縣市升格／改制 */
-.ev small { margin-right: 0.5em; color: var(--muted); font-size: 0.86em; font-variant-numeric: tabular-nums; }
-.blk { position: absolute; overflow: clip; transition: transform 0.12s ease-out, filter 0.12s, box-shadow 0.12s; border-radius: 2px; color: #fff; line-height: 1.2; cursor: pointer; }
+.leads path { fill: none; stroke: var(--ev); opacity: 0.6; stroke-width: 1; }
+.ev { position: absolute; transform: translateY(-50%); padding-left: 1em; color: var(--ev); font-weight: 500; line-height: 1.2; white-space: nowrap; }
+.ev.up { color: var(--ev-up); } /* 縣市升格／改制 */
+.ev small { margin-right: 0.5em; color: var(--dim); font-weight: 400; font-size: 0.86em; font-variant-numeric: tabular-nums; }
+.blk { position: absolute; overflow: clip; transition: transform 0.12s ease-out, filter 0.12s, box-shadow 0.12s; border-radius: 2px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); color: #fff; line-height: 1.2; cursor: pointer; } /* 上緣一條亮邊：有一點立體 */
 /* 滑鼠移上去：那一格放大、變亮、浮起來（不畫白框） */
-.blk:hover { z-index: 1; transform: scale(1.12); filter: brightness(1.15); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6); }
+.blk:hover { z-index: 1; transform: scale(1.12); filter: brightness(1.15); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 8px 22px rgba(0, 0, 0, 0.6); }
 /* 名字：四邊跟格子留 Bootstrap 的 p-1（0.25rem）；格子比畫面長、捲過頭時留在看得到的地方（貼著凍結的列、欄）；
    註記接在名字後面，欄太窄放不下就折到下一行 */
 .blk span { position: sticky; display: block; width: fit-content; max-width: 100%; padding: 0.25rem; text-shadow: 0 0 2px rgba(0, 0, 0, 0.5); }
-.blk b { font-weight: inherit; white-space: nowrap; }
+.blk b { font-weight: 600; white-space: nowrap; }
 .blk small { display: block; line-height: 1.1; white-space: nowrap; opacity: 0.8; font-size: 0.77em; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-.blk .cut { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255, 255, 255, 0.6); } /* 連任的交界 */
-.blk.noted { background-image: repeating-linear-gradient(135deg, rgba(22, 22, 22, 0.4) 0 2px, transparent 2px 6px); } /* 非民選：黨色＋斜線 */
-.blk em { display: inline-block; margin-left: 1px; padding: 0 1px; vertical-align: 0.1em; border-radius: 2px; background: rgba(22, 22, 22, 0.75); font-style: normal; font-size: 0.7em; letter-spacing: -0.03em; white-space: nowrap; } /* 註記（官派、代理、補選、現任）：接在名字後面 */
+.blk .cut { position: absolute; left: 0; right: 0; border-top: 1px dashed #fff; opacity: 0.3; } /* 連任的交界 */
+.blk.noted { background-image: repeating-linear-gradient(135deg, rgba(var(--shade), 0.4) 0 2px, transparent 2px 6px); } /* 非民選：黨色＋斜線 */
+.blk em { display: inline-block; margin-left: 1px; padding: 0 1px; vertical-align: 0.1em; border-radius: 2px; background: rgba(var(--shade), 0.75); font-style: normal; font-size: 0.7em; letter-spacing: -0.03em; white-space: nowrap; } /* 註記（官派、代理、補選、現任）：接在名字後面 */
 .blk em.now { padding: 0; background: none; opacity: 0.9; } /* 現任：不要黑底 */
-.blk.acting::before { content: ''; position: absolute; inset: 0; background: rgba(22, 22, 22, 0.45); } /* 代理：黨色壓暗、字不變 */
+.blk.acting::before { content: ''; position: absolute; inset: 0; background: rgba(var(--shade), 0.45); } /* 代理：黨色壓暗、字不變 */
+
+/* ── 觸控螢幕：沒有滑鼠移上去這回事（不然點過的按鈕、格子會一直停在放大的樣子） */
+@media (hover: none) {
+  .btn-tb:hover:not(:disabled), .blk:hover { transform: none; filter: none; }
+  .btn-tb:hover:not(:disabled):not(.active) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
+  .blk:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
+}
+/* 手機版面：按鈕加高（手指點得到，至少 36px）、工具列貼邊可以橫滑 */
+@media (max-width: 720px) {
+  .toolbar { padding: 6px 8px; }
+  .btn-tb { --bs-btn-padding-y: 8px; --bs-btn-padding-x: 11px; --bs-btn-font-size: 13px; }
+  .ctl .form-range { height: 36px; }
+}

@@ -102,9 +102,9 @@ export function tipPos(e) {
 // 總統的卡片
 export function presTip(p, pos) {
   const end = p.end ?? H.asOf
-  return { pos, name: p.name, tags: p.end ? [] : ['現任'], color: COLOR[p.party], party: p.party === 'kmt' ? '中國國民黨' : '民主進步黨', unit: '中華民國總統', from: ymd(p.start), to: ymd(end, H.asOf), dur: span(p.start, end), terms: p.cuts.length + 1, note: p.note, photo: photos[p.name], life: life(p.name) }
+  return { pos, name: p.name, tags: p.end ? [] : ['現任'], color: COLOR[p.party], party: p.party === 'kmt' ? '中國國民黨' : '民主進步黨', unit: '中華民國總統', from: ymd(p.start), to: ymd(end, H.asOf), dur: span(p.start, end), terms: p.cuts.length + 1, note: p.note, photo: photos[p.name], life: life(p.name), url: wiki(p.name) }
 }
 // 縣市長的卡片（t＝RUNS 裡的一段）
 export function termTip(t, pos) {
-  return { pos, name: t.name, tags: termTags(t), color: colorOf(t), party: t.partyName, unit: `${t.unit}${t.unit.endsWith('市') ? '市長' : '縣長'}`, from: ymd(t.start), to: ymd(t.end, H.asOf), dur: span(t.start, t.end), terms: t.cuts.length + 1, photo: photos[t.wiki], life: life(t.wiki ?? t.name) }
+  return { pos, name: t.name, tags: termTags(t), color: colorOf(t), party: t.partyName, unit: `${t.unit}${t.unit.endsWith('市') ? '市長' : '縣長'}`, from: ymd(t.start), to: ymd(t.end, H.asOf), dur: span(t.start, t.end), terms: t.cuts.length + 1, photo: photos[t.wiki], life: life(t.wiki ?? t.name), url: termUrl(t) }
 }

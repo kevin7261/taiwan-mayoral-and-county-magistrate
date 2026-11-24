@@ -3,6 +3,7 @@
   <div class="pane">
     <div class="toolbar">
       <div class="ctl" role="toolbar" aria-label="工具列">
+        <ModeTabs />
         <div class="tb-grp" role="group" aria-label="時間">
           <button type="button" class="btn btn-sm btn-tb" title="上一次首長變動（←）" :disabled="!prevDay" @click="go(prevDay)"><span class="material-symbols-outlined">skip_previous</span></button>
           <button type="button" class="btn btn-sm btn-tb" :class="{ active: playing }" :aria-pressed="playing" title="播放／暫停（空白鍵）" @click="toggle"><span class="material-symbols-outlined">{{ playing ? 'pause' : 'play_arrow' }}</span><span class="lbl">{{ playing ? '暫停' : '播放' }}</span></button>
@@ -26,7 +27,7 @@
           <div class="head" :style="{ left: `${YEAR_W}px`, width: `${PRES_W}px` }"><b>總統</b></div>
           <div v-if="EV_W" class="head" :style="{ left: `${YEAR_W + PRES_W}px`, width: `${EV_W}px` }"><b>大事</b></div>
         </div>
-        <div ref="tbody" class="tbody" @pointerdown="onScrub" @pointermove="onScrub" @pointerup="endScrub" @pointercancel="endScrub" @mousemove="onPresHover" @mouseleave="tip = null">
+        <div ref="tbody" class="tbody" @pointerdown="onScrub" @pointermove="onScrub" @pointerup="endScrub" @pointercancel="endScrub" @mousemove="onPresHover" @mouseleave="tip?.sheet || (tip = null)">
           <span v-for="y in ticks" :key="y" class="year" :title="y" :style="{ top: `${(y - Y0) * py}px`, width: `${YEAR_W}px` }">’{{ String(y).slice(2) }}</span>
           <div v-for="(p, i) in pres" :key="p.name" class="blk" :aria-label="p.tip" :data-p="i" :style="{ left: `${YEAR_W + 2}px`, width: `${PRES_W - 4}px`, top: `${p.a * py}px`, height: `${p.h}px`, backgroundColor: COLOR[p.party] }">
             <i v-for="c in p.cuts" :key="c" class="cut" :style="{ top: `${c * py}px` }"></i>
@@ -40,24 +41,53 @@
       </div>
 
       <!-- 右：地圖 -->
-      <div ref="mapEl" class="map">
-        <svg :width="size.w" :height="size.h" @mousemove="onMapHover" @mouseleave="tip = null" @click="onMapClick">
+      <div ref="mapEl" class="map" :class="{ tiny }">
+        <svg :width="size.w" :height="size.h" @mousemove="onMapHover" @mouseleave="hotKey = null, tip?.sheet || (tip = null)" @click="onMapClick">
           <defs>
-            <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="6" fill="rgba(22, 22, 22, 0.4)" /></pattern>
+            <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="6" fill="rgba(14, 14, 15, 0.4)" /></pattern>
+            <!-- 縣市的立體感（浮雕）：朝左上的邊緣一條白邊、朝右下的邊緣一條黑影，都畫在形狀裡面。
+                 每個縣市先往裡縮 0.5px：相鄰兩個縣市之間就有 1px 的間隙（跟編年表格子上下之間一樣）。
+                 做法：形狀往右下移一點，原本有、移過後沒有的那一圈＝左上的邊（塗白）；往左上移＝右下的邊（塗黑）；各糊一點再裁回形狀裡 -->
+            <filter id="bevel" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
+              <feMorphology in="SourceGraphic" operator="erode" radius="0.5" result="shape" />
+              <feOffset in="shape" dx="1" dy="1" result="toSE" />
+              <feComposite in="shape" in2="toSE" operator="out" result="edgeNW" />
+              <feGaussianBlur in="edgeNW" stdDeviation="0.5" result="edgeNWb" />
+              <feFlood flood-color="#fff" flood-opacity="0.32" />
+              <feComposite in2="edgeNWb" operator="in" result="light" />
+              <feOffset in="shape" dx="-1.2" dy="-1.2" result="toNW" />
+              <feComposite in="shape" in2="toNW" operator="out" result="edgeSE" />
+              <feGaussianBlur in="edgeSE" stdDeviation="0.6" result="edgeSEb" />
+              <feFlood flood-color="#000" flood-opacity="0.28" />
+              <feComposite in2="edgeSEb" operator="in" result="dark" />
+              <feMerge result="both"><feMergeNode in="dark" /><feMergeNode in="light" /></feMerge>
+              <feComposite in="both" in2="shape" operator="in" result="inside" />
+              <feMerge><feMergeNode in="shape" /><feMergeNode in="inside" /></feMerge>
+            </filter>
+            <!-- 只縮 0.5px（非民選的斜線那一層用，才不會蓋到間隙） -->
+            <filter id="gap"><feMorphology operator="erode" radius="0.5" /></filter>
           </defs>
-          <!-- 離島的小框：金門、連江離本島太遠，另外畫 -->
+          <!-- 外島三縣的小框（左上角）：連江、金門、澎湖 -->
           <g v-for="b in layout.boxes" :key="b.name" class="inset">
             <rect :x="b.x" :y="b.y" :width="b.w" :height="b.h" rx="6" />
           </g>
-          <g v-for="s in shapes" :key="s.key" class="county" :class="{ sub: s.sub, none: !s.run }" :data-k="s.key">
-            <path :d="s.d" :fill="s.fill" />
-            <path v-if="s.run?.note" :d="s.d" fill="url(#hatch)" class="over" />
+          <!-- 整塊陸地下面一圈黑影：浮在底上 -->
+          <g class="land">
+            <g v-for="s in shapes" :key="s.key" class="county" :class="{ sub: s.sub, none: !s.run }" :data-k="s.key">
+              <path :d="s.d" :fill="s.fill" :filter="s.sub ? null : 'url(#bevel)'" />
+              <path v-if="s.run?.note" :d="s.d" fill="url(#hatch)" class="over" filter="url(#gap)" />
+            </g>
+          </g>
+          <!-- 滑鼠移到的那個縣市：在所有縣市上面再畫一份，放大、變亮、浮起來（跟格子一樣；直接放大原本那一份會被旁邊的縣市蓋住） -->
+          <g v-if="hot" :key="hot.key" class="lift">
+            <path :d="hot.d" :fill="hot.fill" filter="url(#bevel)" />
+            <path v-if="hot.run?.note" :d="hot.d" fill="url(#hatch)" filter="url(#gap)" />
           </g>
           <!-- 字畫在所有縣市上面 -->
           <g v-for="s in shapes" :key="s.key" class="label">
-            <text v-if="!s.sub && (show.unit || show.name)" :x="s.x" :y="s.y">
-              <tspan v-if="show.unit" class="unit" :x="s.x">{{ s.unit }}</tspan>
-              <tspan v-if="show.name && s.run" class="name" :x="s.x" :dy="show.unit ? '1.15em' : 0">{{ s.run.name }}<tspan v-if="s.tag" class="tag" dx="2">{{ s.tag }}</tspan></tspan>
+            <text v-if="!s.sub && (unitOn || show.name)" :x="s.x" :y="s.y">
+              <tspan v-if="unitOn" class="unit" :x="s.x">{{ s.unit }}</tspan>
+              <tspan v-if="show.name && s.run" class="name" :x="s.x" :dy="unitOn ? '1.15em' : 0">{{ s.run.name }}<tspan v-if="s.tag" class="tag" dx="2">{{ s.tag }}</tspan></tspan>
             </text>
           </g>
         </svg>
@@ -72,7 +102,7 @@
       </div>
     </div>
 
-    <TipCard :tip="tip" />
+    <TipCard :tip="tip" @close="tip = null" />
   </div>
 </template>
 
@@ -80,6 +110,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { geoMercator, geoPath } from 'd3-geo'
 import TipCard from './TipCard.vue'
+import ModeTabs from './ModeTabs.vue'
 import NOW from './data/county-now.json'
 import OLD from './data/county-2010.json'
 import { COLOR, MERGED, MERGE_DAY, UNKNOWN, colorOf, yr, ymd } from './parties.js'
@@ -87,8 +118,8 @@ import { EVS, H, PRES, RUNS, Y0, Y1, fromYr, loadPhotos, presTip, termTags, term
 
 const YEAR_W = 28, HEAD = 40 // 年份欄的寬、欄名那一列的高（跟編年表一樣）
 const NARROW = 720 // 畫面比這個窄＝手機版面
-const PLAIN = '#4a4c4b' // 不顯示政黨色時的顏色
-const VACANT = '#2b2d2e' // 那一天沒有首長（出缺、維基沒有資料）
+const PLAIN = '#48484a' // 不顯示政黨色時的顏色
+const VACANT = '#232325' // 那一天沒有首長（出缺、維基沒有資料）
 const SPEED = 2.5 // 播放：一秒走幾年
 const CITY_SINCE = '1982-07-01' // 新竹市、嘉義市升格省轄市；之前是縣轄市，算在新竹縣、嘉義縣裡
 const SHOW = [['unit', '縣市名'], ['name', '市長名'], ['color', '政黨色']]
@@ -124,6 +155,8 @@ function toggle() {
 const split = ref(null), tbody = ref(null), mapEl = ref(null)
 const size = reactive({ w: 800, h: 600, page: 1200, th: 600 }) // 地圖的寬高、整頁的寬、時間軸的高
 const compact = computed(() => size.page < NARROW)
+const tiny = computed(() => size.h < 320) // 地圖很小（手機橫放）：字縮小，縣市名和首長名都開時只寫首長名
+const unitOn = computed(() => show.unit && !(tiny.value && show.name))
 const PRES_W = computed(() => (compact.value ? 48 : 60)), EV_W = computed(() => (compact.value ? 0 : 138))
 const AXIS = computed(() => YEAR_W + PRES_W.value + EV_W.value)
 const py = computed(() => size.th / (Y1 - Y0)) // 一年幾 px
@@ -157,12 +190,15 @@ const endScrub = () => (scrubbing.value = false)
 
 // ── 地圖
 // 兩份界線：現在的 22 縣市；2010-12-25 縣市合併前的（臺中、臺南、高雄拆回縣、市）。離本島太遠的小島（東沙、南沙、釣魚臺、烏坵）不畫
-const INSETS = ['金門縣', '連江縣']
+const INSETS = ['連江縣', '金門縣', '澎湖縣'] // 外島三縣：另外畫在左上角的小框裡（照這個順序）
 const polys = (g) => (g.type === 'Polygon' ? [g.coordinates] : g.coordinates)
+// d3-geo 要外圈順時針、洞逆時針（反過來會當成「整個地球扣掉這一塊」，整張圖被塗滿）；簡化後的檔案方向相反，這裡轉正
+const area2 = (r) => { let a = 0; for (let i = 0; i < r.length - 1; i++) a += r[i][0] * r[i + 1][1] - r[i + 1][0] * r[i][1]; return a }
+const wind = (poly) => poly.map((r, i) => ((area2(r) > 0) === (i === 0) ? r.slice().reverse() : r))
 function prep(fc) {
   return fc.features.map((f) => {
     const key = f.properties.COUNTYNAME, group = INSETS.includes(key) ? key : 'main'
-    const keep = polys(f.geometry).filter((p) => {
+    const keep = polys(f.geometry).map(wind).filter((p) => {
       const xs = p[0].map((c) => c[0]), ys = p[0].map((c) => c[1])
       const x = (Math.min(...xs) + Math.max(...xs)) / 2, y = (Math.min(...ys) + Math.max(...ys)) / 2
       return group === 'main' ? x > 119.1 && x < 122.3 && y > 21.7 && y < 25.7 : group === '金門縣' ? x < 118.7 : true
@@ -180,8 +216,9 @@ const layout = computed(() => {
   const { w, h } = size, pad = 16, k = Math.min(1.4, Math.max(0.5, h / 800))
   const fc = (list) => ({ type: 'FeatureCollection', features: list.map((s) => ({ type: 'Feature', geometry: s.geometry })) })
   const main = geoMercator().fitExtent([[pad, pad], [w - pad, h - pad]], fc(GEO.now.filter((s) => s.group === 'main')))
-  // 離島的小框：左上角（本島西北邊是海）
-  const bw = Math.round(Math.min(130, w * 0.24)), bh = Math.round(bw * 0.72)
+  // 外島三縣的小框：左上角（本島西北邊是海）
+  // 三個直排；畫面矮（手機橫放）就一起縮小到排得下
+  const bh = Math.round(Math.min(Math.min(130, w * 0.24) * 0.72, (h - 24 - 20) / 3)), bw = Math.round(bh / 0.72)
   const boxes = INSETS.map((name, i) => ({ name, x: 12, y: 12 + i * (bh + 10), w: bw, h: bh }))
   const proj = { main }
   for (const b of boxes) proj[b.name] = geoMercator().fitExtent([[b.x + 8, b.y + 8], [b.x + b.w - 8, b.y + b.h - 22]], fc(GEO.now.filter((s) => s.group === b.name)))
@@ -190,14 +227,14 @@ const layout = computed(() => {
     // 字放在最大那一塊的中心（離島的小框：框的下緣）
     const big = s.geometry.coordinates.map((c) => ({ type: 'Polygon', coordinates: c })).reduce((a, b) => (path.area(b) > path.area(a) ? b : a))
     const [cx, cy] = path.centroid(big), [dx, dy] = NUDGE[s.key] ?? [0, 0]
-    return { ...s, d: path({ type: 'Feature', geometry: s.geometry }), x: box ? box.x + box.w / 2 : cx + dx * k, y: box ? box.y + box.h - (show.unit && show.name ? 17 : 8) : cy + dy * k - (show.unit && show.name ? 5 : 0) }
+    return { ...s, d: path({ type: 'Feature', geometry: s.geometry }), x: box ? box.x + box.w / 2 : cx + dx * k, y: box ? box.y + box.h - (unitOn.value && show.name ? 17 : 8) : cy + dy * k - (unitOn.value && show.name ? 5 : 0) }
   })
   return { boxes, now: build(GEO.now), old: build(GEO.old) }
 })
 // 那一天誰在任
 const runAt = (county, d, unit) => RUNS[county]?.find((t) => t.start <= d && (d < t.end || t.end === H.asOf) && (!unit || t.unit === unit))
 // 代理：黨色壓暗（跟編年表一樣蓋 45% 的黑）
-const dim = (hex) => `#${[1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * 0.55 + 0x16 * 0.45).toString(16).padStart(2, '0')).join('')}`
+const dim = (hex) => `#${[1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * 0.55 + [14, 14, 15][(i - 1) / 2] * 0.45).toString(16).padStart(2, '0')).join('')}`
 const shapes = computed(() => {
   const d = date.value
   return layout.value[d >= MERGE_DAY ? 'now' : 'old'].map((s) => {
@@ -218,16 +255,23 @@ const tally = computed(() => {
 
 // ── 資訊卡、點擊
 const tip = ref(null)
+const hotKey = ref(null) // 滑鼠移到哪個縣市
+const hot = computed(() => shapes.value.find((s) => s.key === hotKey.value && s.run && !s.sub))
 const shapeOf = (e) => { const k = e.target.closest?.('[data-k]')?.dataset.k; return k && shapes.value.find((s) => s.key === k) }
 function onMapHover(e) {
+  if (tip.value?.sheet) return // 觸控開的卡：留著
   const s = shapeOf(e)
+  hotKey.value = s?.run ? s.key : null
   tip.value = s?.run ? termTip(s.run, tipPos(e)) : null
 }
 function onMapClick(e) {
   const s = shapeOf(e)
-  if (s?.run) window.open(termUrl(s.run), '_blank', 'noopener')
+  // 觸控點縣市：先出資訊卡（卡上有開維基的按鈕）；點空白把卡收掉。滑鼠：直接開維基
+  if (e.pointerType === 'touch' || e.pointerType === 'pen') tip.value = s?.run ? { ...termTip(s.run, {}), sheet: true } : null
+  else if (s?.run) window.open(termUrl(s.run), '_blank', 'noopener')
 }
 function onPresHover(e) {
+  if (tip.value?.sheet) return
   const el = scrubbing.value ? null : e.target.closest?.('[data-p]')
   tip.value = el ? presTip(PRES[el.dataset.p], tipPos(e)) : null
 }
@@ -262,7 +306,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.day { min-width: 68px; padding: 0 6px; color: var(--text); font-size: 13px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+.day { min-width: 72px; margin-left: 4px; padding: 3px 8px; border-radius: 8px; background: var(--bg); color: var(--text); font-size: 13px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
 .split { flex: 1; min-height: 0; display: flex; }
 
 /* 左：時間軸（字級跟編年表 100% 一樣） */
@@ -273,34 +317,39 @@ onBeforeUnmount(() => {
 .taxis.scrubbing .blk { transition: none; transform: none; filter: none; box-shadow: none; }
 .ev.past { opacity: 0.4; } /* 還沒發生的大事：淡掉 */
 /* 選到的那一天：一條橫線＋日期 */
-.phead { position: absolute; left: 0; right: 0; z-index: 3; height: 0; border-top: 2px solid #fff; pointer-events: none; filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.8)); }
+.phead { position: absolute; left: 0; right: 0; z-index: 3; height: 0; border-top: 2px solid var(--accent); pointer-events: none; filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.8)); }
 .phead.low span { top: -17px; } /* 貼到最下面、最上面：日期往裡面收，不被切掉 */
 .phead.high span { top: 0; }
-.phead span { position: absolute; right: 0; top: -9px; padding: 1px 5px; border-radius: 3px 0 0 3px; background: #fff; color: #161616; font-size: 10px; font-weight: 700; line-height: 14px; font-variant-numeric: tabular-nums; }
+.phead span { position: absolute; right: 0; top: -9px; padding: 1px 5px; border-radius: 6px 0 0 6px; background: var(--accent); color: var(--bg); font-size: 10px; font-weight: 700; line-height: 14px; font-variant-numeric: tabular-nums; }
 
 /* 右：地圖 */
-.map { flex: 1; min-width: 0; position: relative; overflow: hidden; }
+.map { flex: 1; min-width: 0; position: relative; overflow: hidden; background: radial-gradient(ellipse at 58% 45%, #1a1a1c 0, var(--bg) 70%); }
 .map svg { display: block; }
-.inset rect { fill: rgba(255, 255, 255, 0.03); stroke: var(--line); }
-.county path { stroke: var(--bg); stroke-width: 1; stroke-linejoin: round; cursor: pointer; transition: fill 0.25s; }
+.inset rect { fill: rgba(255, 255, 255, 0.035); stroke: var(--line); }
+.land { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45)); }
+.county path { cursor: pointer; transition: fill 0.25s; } /* 縣市之間不描線：每個縣市往裡縮 0.5px（濾鏡），中間留 1px 的間隙 */
 .county .over { pointer-events: none; transition: none; }
 .county.sub path { stroke: none; } /* 縣轄市時期的新竹市、嘉義市：併在縣裡，不畫界線 */
 .county.none path { cursor: default; }
-.county { transform-box: fill-box; transform-origin: center; transition: transform 0.12s ease-out, filter 0.12s; }
-/* 滑鼠移上去：那個縣市放大、變亮 */
-.county:not(.none):hover { transform: scale(1.04); filter: brightness(1.18) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6)); }
+/* 滑鼠移上去：跟格子一樣放大 12%、變亮 15%、同樣的陰影、同樣 0.12 秒 */
+.lift { pointer-events: none; transform-box: fill-box; transform-origin: center; transform: scale(1.12); filter: brightness(1.15) drop-shadow(0 8px 11px rgba(0, 0, 0, 0.6)); animation: lift 0.12s ease-out; }
+@keyframes lift { from { transform: scale(1); filter: brightness(1) drop-shadow(0 0 0 rgba(0, 0, 0, 0)); } }
+@media (hover: none) { .lift { display: none; } }
 .label { pointer-events: none; }
-.label text { text-anchor: middle; fill: #fff; paint-order: stroke; stroke: rgba(22, 22, 22, 0.85); stroke-width: 3px; stroke-linejoin: round; font-size: 12px; }
-.label .unit { fill: #d6d5d0; font-size: 10px; }
+.label text { text-anchor: middle; fill: #fff; paint-order: stroke; stroke: rgba(14, 14, 15, 0.85); stroke-width: 3px; stroke-linejoin: round; font-size: 12px; }
+.label .unit { fill: #cdd3e0; font-size: 10px; }
 .label .name { font-weight: 700; }
-.label .tag { fill: #ffdd78; font-size: 9px; font-weight: 500; }
+.map.tiny .label text { font-size: 9px; stroke-width: 2px; }
+.map.tiny .sum { max-width: 170px; padding: 6px 8px; font-size: 11px; }
+.map.tiny .sum-day { font-size: 16px; }
+.label .tag { fill: var(--ev); font-size: 9px; font-weight: 500; }
 /* 右上角的摘要 */
-.sum { position: absolute; right: 12px; top: 12px; max-width: 240px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(28, 30, 31, 0.9); font-size: 12px; line-height: 1.6; pointer-events: none; }
+.sum { position: absolute; right: 12px; top: 12px; max-width: 240px; padding: 10px 12px; border: 1px solid #48484a; border-radius: 14px; background: rgba(44, 44, 46, 0.72); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: var(--shadow); font-size: 12px; line-height: 1.6; pointer-events: none; }
 .sum-day { font-size: 24px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .sum-row { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .sum-tally { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; }
 .sum-tally span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
-.sum i { flex: none; width: 10px; height: 10px; border-radius: 2px; }
+.sum i { flex: none; width: 10px; height: 10px; border-radius: 3px; }
 .sum b { font-variant-numeric: tabular-nums; }
 @media (max-width: 720px) {
   .sum { right: 8px; top: 8px; max-width: 150px; padding: 6px 8px; font-size: 11px; }

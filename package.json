@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "build:data": "python3 scripts/build_mayor_history.py",
+    "build:map": "bash scripts/simplify_counties.sh",
     "deploy": "vite build && gh-pages-clean && gh-pages -d dist -o upstream"
   },
   "dependencies": {

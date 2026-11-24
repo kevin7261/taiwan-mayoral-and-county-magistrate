@@ -4,6 +4,7 @@
     <!-- 工具列（Bootstrap 元件、Material Symbols 圖示）：顯示什麼、字級、縮放、滾輪縮放模式／拖曳模式、回到預設 -->
     <div class="toolbar">
       <div class="ctl" role="toolbar" aria-label="工具列">
+        <ModeTabs />
         <div class="tb-grp" role="group" aria-label="格子上顯示什麼">
           <button v-for="[k, l] in SHOW" :key="k" type="button" class="btn btn-sm btn-tb" :class="{ active: show[k] }" :aria-pressed="show[k]" :title="`顯示${l}`" @click="show[k] = !show[k]">{{ l }}</button>
         </div>
@@ -21,8 +22,8 @@
         </div>
         <div class="vr"></div>
         <div class="tb-grp" role="group" aria-label="操作模式">
-          <button type="button" class="btn btn-sm btn-tb" :class="{ active: wheel }" :aria-pressed="wheel" title="開：滾輪＝縮放（以游標為中心）；關：滾輪＝一般捲動" @click="wheel = !wheel">滾輪縮放模式</button>
-          <button type="button" class="btn btn-sm btn-tb" :class="{ active: nav }" :aria-pressed="nav" title="開：按住拖曳＝移動（表的四周可以拖出去）；關：不能拖" @click="setNav(!nav)">拖曳模式</button>
+          <button type="button" class="btn btn-sm btn-tb" :class="{ active: wheel }" :aria-pressed="wheel" title="滾輪＝縮放（以游標為中心）；跟拖曳模式二選一，再按一次＝關掉（滾輪照一般捲動）" @click="setOp(wheel ? null : 'wheel')">滾輪縮放模式</button>
+          <button type="button" class="btn btn-sm btn-tb" :class="{ active: nav }" :aria-pressed="nav" title="按住拖曳＝移動（表的四周可以拖出去）；跟滾輪縮放模式二選一，再按一次＝關掉" @click="setOp(nav ? null : 'nav')">拖曳模式</button>
         </div>
         <div class="vr"></div>
         <button type="button" class="btn btn-sm btn-tb" title="縮放 100%、字級、顯示項目、滾輪縮放模式、拖曳模式都回到預設（0）" :disabled="isDefault" @click="reset"><span class="material-symbols-outlined">restart_alt</span><span class="lbl">回到預設</span></button>
@@ -30,7 +31,7 @@
     </div>
 
     <div ref="scroller" class="scroller" :class="{ dragging, nav }" tabindex="0" :style="{ fontSize: `${11 * f}px` }"
-      @wheel="onWheel" @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp" @mousemove="onHover" @mouseleave="tip = null" @scroll="tip = null">
+      @wheel="onWheel" @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp" @mousemove="onHover" @mouseleave="tip?.sheet || (tip = null)" @scroll="tip = null">
       <div class="sheet" :style="{ gridTemplateColumns: `${padX}px ${axisW}px ${cw}px ${padX}px`, gridTemplateRows: `${padY}px ${headH}px ${ch}px ${padY}px` }">
         <!-- 左上角：凍結欄的欄名 -->
         <div class="corner">
@@ -68,18 +69,19 @@
       </div>
     </div>
 
-    <TipCard :tip="tip" />
+    <TipCard :tip="tip" @close="tip = null" />
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import TipCard from './TipCard.vue'
+import ModeTabs from './ModeTabs.vue'
 import { COLOR, MERGED, MERGE_DAY, colorOf, yr, ymd } from './parties.js'
 import { EVS, H, PRES, RUNS, Y0, Y1, cutsOf, loadPhotos, photos, presTip, termTags, termTip, termUrl, tipPos, wiki } from './shared.js'
 
 const props = defineProps({ active: { type: Boolean, default: true } }) // 這個分頁是不是正在看（藏起來時不收鍵盤）
-const PLAIN = '#4a4c4b' // 不顯示政黨色時格子的顏色
+const PLAIN = '#48484a' // 不顯示政黨色時格子的顏色
 const YEAR_W = 28, HEAD = 40 // 年份欄的寬、上面縣市名那一列的高（100%、預設字級時的 px）
 const MIN_COL = 50, MIN_YEAR = 10 // 100% 時一欄最少幾 px、一年最少幾 px：畫面小就用捲的，不硬擠
 const NARROW = 720 // 畫面比這個窄＝手機版面
@@ -193,10 +195,11 @@ function setFont(v) {
   apply(z.value)
 }
 const fontStep = (dir) => setFont((dir > 0 ? FONTS.find((s) => s > fs.value + 0.001) : FONTS.findLast((s) => s < fs.value - 0.001)) ?? fs.value)
-// 開關拖曳模式：四周的空白跟著有、沒有，畫面左上角那一點留在原地
-function setNav(v) {
+// 操作模式：滾輪縮放、拖曳二選一（或都不開）。開關拖曳時四周的空白跟著有、沒有，畫面左上角那一點留在原地
+function setOp(op) {
   anchor(axisW.value, headH.value)
-  nav.value = v
+  wheel.value = op === 'wheel'
+  nav.value = op === 'nav'
   if (!raf) apply(z.value)
 }
 // 回到預設：100%、預設字級、三樣都顯示、滾輪縮放模式、拖曳模式關掉、捲回左上角
@@ -221,7 +224,7 @@ function onWheel(e) {
 
 // ── 資訊卡
 // 格子的底：黨色（不顯示政黨色＝灰）；非民選加斜線；開了「照片」而且有照片：照片鋪滿，上面蓋一層黨色（上濃下淡，字在上面看得清楚）
-const HATCH = 'repeating-linear-gradient(135deg, rgba(22, 22, 22, 0.4) 0 2px, transparent 2px 6px)'
+const HATCH = 'repeating-linear-gradient(135deg, rgba(14, 14, 15, 0.4) 0 2px, transparent 2px 6px)'
 function bg(color, title, note) {
   const c = show.color ? color : PLAIN, photo = show.photo && photos[title]
   const img = [note && HATCH, photo && `linear-gradient(${c}f2 0, ${c}b3 2.5em, ${c}33 6em)`, photo && `url("${photo}")`].filter(Boolean)
@@ -229,6 +232,7 @@ function bg(color, title, note) {
 }
 const tip = ref(null)
 function onHover(e) {
+  if (tip.value?.sheet) return // 觸控開的卡：留著，不跟滑鼠事件走
   const el = dragging.value ? null : e.target.closest?.('[data-i], [data-p]')
   if (!el) return (tip.value = null)
   tip.value = el.dataset.p != null ? presTip(PRES[el.dataset.p], tipPos(e)) : termTip(blocks[el.dataset.i].t, tipPos(e))
@@ -255,8 +259,11 @@ function onMove(e) {
 function onUp(e) {
   if (!down || e.pointerId !== down.id) return
   if (e.type === 'pointerup' && down.moved < 5 && e.timeStamp - down.t < 500) {
-    const url = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-url]')?.dataset.url
-    if (url) window.open(url, '_blank', 'noopener')
+    const el = document.elementFromPoint(e.clientX, e.clientY), blk = el?.closest('[data-i], [data-p]')
+    // 觸控點格子：先出資訊卡（卡上有開維基的按鈕）；點別的地方把卡收掉。滑鼠、縣市名：直接開維基
+    if (!down.mouse && blk) tip.value = { ...(blk.dataset.p != null ? presTip(PRES[blk.dataset.p], {}) : termTip(blocks[blk.dataset.i].t, {})), sheet: true }
+    else if (!down.mouse && tip.value) tip.value = null
+    else { const url = el?.closest('[data-url]')?.dataset.url; if (url) window.open(url, '_blank', 'noopener') }
   }
   down = null
   dragging.value = false
@@ -270,8 +277,20 @@ function onKey(e) {
   e.preventDefault() // 也擋掉瀏覽器自己的 ⌘＋／⌘－
 }
 
+// 觸控兩指捏合＝縮放（以兩指中間為中心）；一指照瀏覽器自己捲
+let pinch = null
+function onTouch(e) {
+  if (e.touches.length !== 2) return (pinch = null)
+  e.preventDefault()
+  const [a, b] = e.touches, d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, r = scroller.value.getBoundingClientRect()
+  pinch ??= { d, z: zT.value }
+  tip.value = null
+  zoomTo(pinch.z * (d / pinch.d), (a.clientX + b.clientX) / 2 - r.left, (a.clientY + b.clientY) / 2 - r.top)
+}
+
 let ro
 onMounted(() => {
+  for (const t of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) scroller.value.addEventListener(t, onTouch, { passive: false })
   let first = true
   ro = new ResizeObserver(() => {
     const r = scroller.value.getBoundingClientRect()
