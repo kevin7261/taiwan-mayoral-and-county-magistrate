@@ -77,13 +77,13 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import TipCard from './TipCard.vue'
 import ModeTabs from './ModeTabs.vue'
+import { plain } from './theme.js'
 import { COLOR, MERGED, MERGE_DAY, colorOf, yr, ymd } from './parties.js'
 import { EVS, H, PRES, RUNS, Y0, Y1, cutsOf, loadPhotos, photos, presTip, termTags, termTip, termUrl, tipPos, wiki } from './shared.js'
 
 const props = defineProps({ active: { type: Boolean, default: true } }) // 這個分頁是不是正在看（藏起來時不收鍵盤）
-const PLAIN = '#48484a' // 不顯示政黨色時格子的顏色
 const YEAR_W = 28, HEAD = 40 // 年份欄的寬、上面縣市名那一列的高（100%、預設字級時的 px）
-const MIN_COL = 50, MIN_YEAR = 10 // 100% 時一欄最少幾 px、一年最少幾 px：畫面小就用捲的，不硬擠
+const MIN_COL = 46, MIN_YEAR = 10 // 100% 時一欄最少幾 px（放得下三個字的名字＋兩邊的留白）、一年最少幾 px：畫面小就用捲的，不硬擠到看不到
 const NARROW = 720 // 畫面比這個窄＝手機版面
 const MIN_Z = 0.25, MAX_Z = 4 // 縮放範圍（100%＝整張表剛好放進畫面）
 const STOPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.25, 1.5, 2, 3, 4] // ＋／－ 按鈕一次跳一格
@@ -129,8 +129,8 @@ const nav = ref(false) // 拖曳模式（預設關）：按住拖曳＝移動，
 const z = ref(1), zT = ref(1) // 現在的倍數、要去的倍數
 const f = computed(() => fs.value * Math.sqrt(z.value))
 const axisW = computed(() => AXIS.value * f.value), headH = computed(() => HEAD * f.value)
-// 100% 時格子區的寬、高（畫面扣掉凍結的欄、列）。寬：桌機一定剛好放進畫面（預設不會有橫的捲軸），手機版面才用最小欄寬；高：太矮就用最小列高，上下捲
-const bw0 = computed(() => Math.max(compact.value ? N * MIN_COL : 100, size.w - AXIS.value * fs.value - 1)), bh0 = computed(() => Math.max((Y1 - Y0) * MIN_YEAR, size.h - HEAD * fs.value - 2))
+// 100% 時格子區的寬、高（畫面扣掉凍結的欄、列）。寬：畫面夠寬就剛好放進畫面（沒有橫的捲軸）；不夠寬時每一欄維持最小寬度（字放大，最小寬度跟著放大），改用橫的捲。高：太矮就用最小列高，上下捲
+const bw0 = computed(() => Math.max(N * MIN_COL * fs.value, size.w - AXIS.value * fs.value - 1)), bh0 = computed(() => Math.max((Y1 - Y0) * MIN_YEAR, size.h - HEAD * fs.value - 2))
 const cw = computed(() => bw0.value * z.value), ch = computed(() => bh0.value * z.value)
 // 開了拖曳：表的四周留空白（畫面的六成），縮小、捲到邊上時黑色的地方也能繼續拖
 const padX = computed(() => (nav.value ? Math.round(size.w * 0.6) : 0)), padY = computed(() => (nav.value ? Math.round(size.h * 0.6) : 0))
@@ -226,7 +226,7 @@ function onWheel(e) {
 // 格子的底：黨色（不顯示政黨色＝灰）；非民選加斜線；開了「照片」而且有照片：照片鋪滿，上面蓋一層黨色（上濃下淡，字在上面看得清楚）
 const HATCH = 'repeating-linear-gradient(135deg, rgba(14, 14, 15, 0.4) 0 2px, transparent 2px 6px)'
 function bg(color, title, note) {
-  const c = show.color ? color : PLAIN, photo = show.photo && photos[title]
+  const c = show.color ? color : plain(), photo = show.photo && photos[title]
   const img = [note && HATCH, photo && `linear-gradient(${c}f2 0, ${c}b3 2.5em, ${c}33 6em)`, photo && `url("${photo}")`].filter(Boolean)
   return { backgroundColor: c, ...(img.length ? { backgroundImage: img.join(', '), backgroundSize: img.map((_, i) => (photo && i === img.length - 1 ? 'cover' : 'auto')).join(', '), backgroundPosition: 'center top' } : {}) }
 }
@@ -320,10 +320,10 @@ onBeforeUnmount(() => {
 /* 捲軸：細、圓角、深色，滑鼠移上去才亮一點（Firefox 沒有 ::-webkit-scrollbar，用標準寫法） */
 .scroller::-webkit-scrollbar { width: 12px; height: 12px; }
 .scroller::-webkit-scrollbar-track, .scroller::-webkit-scrollbar-corner { background: transparent; }
-.scroller::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 6px; background: rgba(255, 255, 255, 0.22); background-clip: content-box; }
-.scroller::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.4); }
+.scroller::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 6px; background: rgba(var(--fg), 0.22); background-clip: content-box; }
+.scroller::-webkit-scrollbar-thumb:hover { background-color: rgba(var(--fg), 0.4); }
 .scroller::-webkit-scrollbar-thumb:active { background-color: var(--accent); }
-@supports (-moz-appearance: none) { .scroller { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.28) transparent; } }
+@supports (-moz-appearance: none) { .scroller { scrollbar-width: thin; scrollbar-color: rgba(var(--fg), 0.28) transparent; } }
 .sheet { display: grid; width: max-content; }
 /* 凍結的列、欄：跟著表走，捲出畫面時才貼在上面、左邊（表的四周是可以拖的空白） */
 .corner, .heads, .axis { position: sticky; background: var(--bg); }

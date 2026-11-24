@@ -3,6 +3,10 @@
   <div class="page">
     <header class="bar">
       <h1>台灣縣市長年表</h1>
+      <!-- 日／夜模式：顯示的是按下去會變成的那一個 -->
+      <button type="button" class="btn btn-sm btn-tb theme" :title="theme === 'dark' ? '切換成日間模式' : '切換成夜間模式'" :aria-label="theme === 'dark' ? '切換成日間模式' : '切換成夜間模式'" @click="toggleTheme">
+        <span class="material-symbols-outlined">{{ theme === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
+      </button>
     </header>
 
     <!-- 編年表留著不卸掉（切回來時縮放、捲到哪裡都還在）；地圖第一次點才載入（界線檔比較大） -->
@@ -28,6 +32,7 @@ import Chrono from './Chrono.vue'
 import { COLOR, UNKNOWN } from './parties.js'
 import { H, count } from './shared.js'
 import { mode } from './mode.js'
+import { theme, toggleTheme } from './theme.js'
 
 const MapView = defineAsyncComponent(() => import('./MapView.vue'))
 const VERSION = __APP_VERSION__ // package.json 的 version（vite.config.js 的 define）
@@ -36,12 +41,14 @@ const VERSION = __APP_VERSION__ // package.json 的 version（vite.config.js 的
 <style scoped>
 .page { display: flex; flex-direction: column; height: 100%; }
 /* 標題放中間 */
-.bar { flex: none; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--chrome); }
+.bar { position: relative; flex: none; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--chrome); }
 .bar h1 { min-width: 0; margin: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; font-size: 17px; font-weight: 700; line-height: 1.3; letter-spacing: 0.06em; white-space: nowrap; }
+/* 日／夜切換：貼右邊，標題照樣在正中間 */
+.bar .theme { position: absolute; right: 12px; top: 50%; translate: 0 -50%; }
 /* 頁尾：圖例（一顆一顆圓角的標籤）、版本、名字 */
 .foot { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--chrome); font-size: 12px; }
-.lg { display: flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.045); color: var(--muted); white-space: nowrap; }
-.lg i { width: 10px; height: 10px; border-radius: 3px; }
+.lg { display: flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: 999px; background: rgba(var(--fg), 0.045); color: var(--muted); white-space: nowrap; }
+.lg i { flex: none; width: 10px; height: 10px; border-radius: 3px; }
 .lg i.noted { width: 16px; background: #aeaeb2 repeating-linear-gradient(135deg, rgba(var(--shade), 0.75) 0 2px, transparent 2px 5px); } /* 示範用灰色，不是某一黨 */
 .lg i.acting { width: 16px; background: linear-gradient(90deg, #aeaeb2 50%, #68686b 50%); } /* 左：原本的顏色，右：壓暗後 */
 .credit { display: flex; align-items: center; gap: 8px; margin-left: auto; padding-left: 12px; white-space: nowrap; }
