@@ -44,3 +44,47 @@ a { color: inherit; text-decoration: none; }
 .lg-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 12px; }
 .lg-swatch { flex: none; width: 18px; height: 12px; border-radius: 2px; }
 .lg-stat { margin-left: auto; padding-left: 8px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ── 工具列（編年表、地圖兩個分頁都有；Bootstrap 的 btn、vr、form-range）：一條圓角的底，裡面是扁平的按鈕，一組一組用直線隔開 */
+.toolbar { flex: none; display: flex; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--bg); font-size: 12px; }
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; width: fit-content; max-width: 100%; padding: 3px 8px; border-radius: 999px; background: var(--chrome); box-shadow: inset 0 0 0 1px var(--line); }
+.tb-grp { display: flex; align-items: center; gap: 2px; }
+.ctl .vr { align-self: center; height: 18px; margin: 0 2px; color: #fff; }
+.ctl .form-range { width: 110px; margin: 0 4px; }
+.pct { min-width: 40px; padding-right: 4px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+/* 手機版面：有圖示的按鈕只留圖示；工具列不換行，放不下用滑的 */
+@media (max-width: 720px) {
+  .lbl { display: none; }
+  .toolbar { overflow-x: auto; scrollbar-width: none; }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .ctl { flex-wrap: nowrap; width: max-content; max-width: none; }
+  .ctl > * { flex: none; }
+  .ctl .form-range { width: 72px; }
+}
+
+/* ── 編年表的樣子（地圖分頁左邊的時間軸也用）：欄名、年份、大事、格子 */
+.head { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; border-right: 1px solid var(--grid); text-align: center; font-size: 1.09em; line-height: 1.2; white-space: nowrap; }
+.head b { font-weight: 600; }
+.head .subs { display: flex; color: #999; font-size: 0.83em; }
+.head .subs span { flex: 1; }
+.heads .head b, .heads .subs span { cursor: pointer; }
+.heads .head b:hover, .heads .subs span:hover { color: var(--accent); }
+.year { position: absolute; left: 0; transform: translateY(-50%); color: #888; font-size: 0.91em; text-align: center; font-variant-numeric: tabular-nums; }
+.leads { position: absolute; top: 0; overflow: visible; }
+.leads path { fill: none; stroke: rgba(255, 221, 120, 0.7); stroke-width: 1; }
+.ev { position: absolute; transform: translateY(-50%); padding-left: 1em; color: #ffdd78; line-height: 1.2; white-space: nowrap; }
+.ev.up { color: #9fd6dc; } /* 縣市升格／改制 */
+.ev small { margin-right: 0.5em; color: var(--muted); font-size: 0.86em; font-variant-numeric: tabular-nums; }
+.blk { position: absolute; overflow: clip; transition: transform 0.12s ease-out, filter 0.12s, box-shadow 0.12s; border-radius: 2px; color: #fff; line-height: 1.2; cursor: pointer; }
+/* 滑鼠移上去：那一格放大、變亮、浮起來（不畫白框） */
+.blk:hover { z-index: 1; transform: scale(1.12); filter: brightness(1.15); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6); }
+/* 名字：四邊跟格子留 Bootstrap 的 p-1（0.25rem）；格子比畫面長、捲過頭時留在看得到的地方（貼著凍結的列、欄）；
+   註記接在名字後面，欄太窄放不下就折到下一行 */
+.blk span { position: sticky; display: block; width: fit-content; max-width: 100%; padding: 0.25rem; text-shadow: 0 0 2px rgba(0, 0, 0, 0.5); }
+.blk b { font-weight: inherit; white-space: nowrap; }
+.blk small { display: block; line-height: 1.1; white-space: nowrap; opacity: 0.8; font-size: 0.77em; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.blk .cut { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255, 255, 255, 0.6); } /* 連任的交界 */
+.blk.noted { background-image: repeating-linear-gradient(135deg, rgba(22, 22, 22, 0.4) 0 2px, transparent 2px 6px); } /* 非民選：黨色＋斜線 */
+.blk em { display: inline-block; margin-left: 1px; padding: 0 1px; vertical-align: 0.1em; border-radius: 2px; background: rgba(22, 22, 22, 0.75); font-style: normal; font-size: 0.7em; letter-spacing: -0.03em; white-space: nowrap; } /* 註記（官派、代理、補選、現任）：接在名字後面 */
+.blk em.now { padding: 0; background: none; opacity: 0.9; } /* 現任：不要黑底 */
+.blk.acting::before { content: ''; position: absolute; inset: 0; background: rgba(22, 22, 22, 0.45); } /* 代理：黨色壓暗、字不變 */

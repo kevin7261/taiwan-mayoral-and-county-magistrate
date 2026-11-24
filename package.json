@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "bootstrap": "^5.3.9",
+    "d3-geo": "^3.1.2",
     "vue": "^3.5.0"
   },
   "devDependencies": {

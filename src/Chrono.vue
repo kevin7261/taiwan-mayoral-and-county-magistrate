@@ -1,9 +1,6 @@
 <template>
-  <!-- 22 縣市歷任首長編年總表：像試算表——上面一列（縣市）、左邊三欄（年份、總統、大事）凍結，其他照一般捲動；下面的列放圖例、顯示什麼、字級和縮放 -->
-  <div class="page">
-    <header class="bar">
-      <h1>臺灣縣市長編年表</h1>
-    </header>
+  <!-- 編年表分頁：像試算表——上面一列（縣市）、左邊三欄（年份、總統、大事）凍結，其他照一般捲動；上面的工具列：顯示什麼、字級、縮放、操作模式 -->
+  <div class="pane">
     <!-- 工具列（Bootstrap 元件、Material Symbols 圖示）：顯示什麼、字級、縮放、滾輪縮放模式／拖曳模式、回到預設 -->
     <div class="toolbar">
       <div class="ctl" role="toolbar" aria-label="工具列">
@@ -71,45 +68,20 @@
       </div>
     </div>
 
-    <!-- 滑鼠移到格子上的資訊卡：照片（維基百科條目的主圖，有才放）、名字、註記、黨籍、任期 -->
-    <div v-if="tip" class="tipcard" :style="tip.pos">
-      <img v-if="tip.photo" :src="tip.photo" alt="" />
-      <div class="tc-body">
-        <div class="tc-name">{{ tip.name }}<span v-for="g in tip.tags" :key="g" class="badge">{{ g }}</span></div>
-        <div v-if="tip.life" class="tc-row tc-life">{{ tip.life }}</div>
-        <div class="tc-row"><i :style="{ background: tip.color }"></i>{{ tip.party }}</div>
-        <div class="tc-row tc-unit">{{ tip.unit }}</div>
-        <div class="tc-row tc-date">{{ tip.from }} – {{ tip.to }}</div>
-        <div class="tc-row tc-dim">在任 {{ tip.dur }}<template v-if="tip.terms > 1">・連任，共 {{ tip.terms }} 任</template></div>
-        <div v-if="tip.note" class="tc-row tc-dim">{{ tip.note }}</div>
-        <div class="tc-row tc-link"><span class="material-symbols-outlined">open_in_new</span>點一下開維基百科</div>
-      </div>
-    </div>
-
-    <footer class="foot">
-      <span v-for="p in H.parties.filter((p) => count[p.key])" :key="p.key" class="lg" :title="`${count[p.key] ?? 0} 人次（民選，同一人連任算一次）`"><i :style="{ background: COLOR[p.key] }"></i>{{ p.label }}</span>
-      <span class="lg"><i :style="{ background: UNKNOWN }"></i>黨籍不詳</span>
-      <span class="lg"><i class="acting" :style="{ background: COLOR.kmt }"></i>代理</span>
-      <span class="lg"><i class="noted" :style="{ background: COLOR.kmt }"></i>非民選</span>
-      <span class="credit">
-        <span class="ver" title="版本">v{{ VERSION }}</span>
-        <a href="https://github.com/szfftz/taiwan-mayoral-and-county-magistrate" target="_blank" rel="noopener">szfftz</a>
-      </span>
-    </footer>
+    <TipCard :tip="tip" />
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import H from './data/mayor-history.json'
-import { EVENTS, PARTY_SHORT, PRESIDENTS } from './central.js'
-import { COLOR, MERGED, MERGE_DAY, UNKNOWN, colorOf, sameRun, tagsOf, yr, ymd } from './parties.js'
+import TipCard from './TipCard.vue'
+import { COLOR, MERGED, MERGE_DAY, colorOf, yr, ymd } from './parties.js'
+import { EVS, H, PRES, RUNS, Y0, Y1, cutsOf, loadPhotos, photos, presTip, termTags, termTip, termUrl, tipPos, wiki } from './shared.js'
 
-const VERSION = __APP_VERSION__ // package.json 的 version（vite.config.js 的 define）
-const ACTING_DIM = 0.45 // 代理：黨色上面蓋一層 45% 的黑
+const props = defineProps({ active: { type: Boolean, default: true } }) // 這個分頁是不是正在看（藏起來時不收鍵盤）
 const PLAIN = '#4a4c4b' // 不顯示政黨色時格子的顏色
 const YEAR_W = 28, HEAD = 40 // 年份欄的寬、上面縣市名那一列的高（100%、預設字級時的 px）
-const MIN_COL = 50, MIN_YEAR = 11 // 100% 時一欄最少幾 px、一年最少幾 px：畫面小就用捲的，不硬擠
+const MIN_COL = 50, MIN_YEAR = 10 // 100% 時一欄最少幾 px、一年最少幾 px：畫面小就用捲的，不硬擠
 const NARROW = 720 // 畫面比這個窄＝手機版面
 const MIN_Z = 0.25, MAX_Z = 4 // 縮放範圍（100%＝整張表剛好放進畫面）
 const STOPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.25, 1.5, 2, 3, 4] // ＋／－ 按鈕一次跳一格
@@ -129,38 +101,14 @@ const cols = (() => {
 })()
 const N = cols.at(-1).col + cols.at(-1).units.length
 
-const wiki = (title) => `https://zh.wikipedia.org/wiki/${encodeURIComponent(title.replaceAll(' ', '_'))}`
-// 臺北縣→新北市、桃園縣→桃園市是升格，同一欄
-// 同一人在同一欄連任合成一格；縣市合併那天起算新的一格（合併後橫跨兩欄）
-function lines(terms) {
-  const out = []
-  for (const t of terms) {
-    const last = out.findLast((x) => x.unit === t.unit)
-    if (last && sameRun(last, t)) last.end = t.end, last.cuts.push(t.start)
-    else out.push({ ...t, cuts: [] })
-  }
-  return out
-}
-// 各黨幾人次（同一人連任算一次；代理、非民選不算）
-const count = (() => {
-  const out = {}
-  for (const c of Object.values(H.counties)) for (const t of lines(c.terms.filter((t) => !t.acting && !t.note))) out[t.party] = (out[t.party] ?? 0) + 1
-  return out
-})()
-
-// 縣轄市時期不畫（新竹市、嘉義市 1982-07-01 升格省轄市後才開始）
-// 時間範圍：最早的第一任民選 → 資料截止日；格子的位置先算成「年」（a、b），畫的時候再乘上每年幾 px
-const Y0 = yr(Object.values(H.counties).reduce((m, c) => (c.from < m ? c.from : m), '9999')), Y1 = yr(H.asOf)
-// 連任的交界（下一任的就職日）：格子裡畫虛線；位置＝離格子頂端幾年
-const cutsOf = (dates, a, b) => dates.map((d) => yr(d) - Y0 - a).filter((v) => v > 0 && v < b - a)
-const blocks = cols.flatMap((c) => lines(H.counties[c.name].terms.filter((t) => t.start < H.asOf && t.note !== '縣轄市')).map((t) => {
+// 格子：每個縣市的每一段任期（shared.js 的 RUNS）；位置先算成「年」（a、b），畫的時候再乘上每年幾 px
+const blocks = cols.flatMap((c) => RUNS[c.name].map((t) => {
   const after = c.units.length > 1 && t.unit === c.name && t.start >= MERGE_DAY
   const a = Math.max(Y0, yr(t.start)) - Y0, b = Math.min(Y1, yr(t.end)) - Y0
   return {
-    id: t.unit + t.start, t, a, b, color: colorOf(t), tags: [...tagsOf(t), t.end === H.asOf && '現任'].filter(Boolean), cuts: cutsOf(t.cuts, a, b),
+    id: t.unit + t.start, t, a, b, color: colorOf(t), tags: termTags(t), cuts: cutsOf(t.cuts, a, b), url: termUrl(t),
     col: c.col + (after || c.units.length === 1 ? 0 : c.units.indexOf(t.unit)), span: after ? c.units.length : 1,
-    url: t.wiki ? wiki(t.wiki) : `https://zh.wikipedia.org/w/index.php?search=${encodeURIComponent(t.name)}`, // 表格裡沒連到條目的：用名字搜尋
-    tip: `${t.unit}　${t.start}–${t.end === H.asOf ? '現任' : t.end}　${tagsOf(t).map((g) => `${g} `).join('')}${t.name}（${t.partyName}）`,
+    tip: `${t.unit}　${t.start}–${t.end === H.asOf ? '現任' : t.end}　${termTags(t).map((g) => `${g} `).join('')}${t.name}（${t.partyName}）`,
   }
 }).filter((b) => b.b > b.a))
 
@@ -196,13 +144,8 @@ const ticks = computed(() => {
 // 格子的高（hf＝換算回預設字級的高：放不放得下名字、日期）。名字四邊一律留 p-1（0.25rem）。名字 ≥ 11；加就任日 ≥ 27；再加卸任日 ≥ 36
 const sized = (b) => { const h = Math.max(1, (b.b - b.a) * py.value - 1); return { ...b, h, hf: h / f.value } }
 const shown = computed(() => blocks.map(sized))
-const PRES = PRESIDENTS.map((p) => {
-  const a = Math.max(Y0, yr(p.start)) - Y0, b = Math.min(Y1, yr(p.end ?? H.asOf)) - Y0
-  return { ...p, a, b, cuts: cutsOf(p.cuts ?? [], a, b), tip: `總統 ${p.name}（${PARTY_SHORT[p.party]}）${p.start}–${p.end ?? '現任'}${p.note ? `　${p.note}` : ''}` }
-}).filter((p) => p.b > p.a)
 const pres = computed(() => PRES.map(sized))
 // 大事：照時間排，跟上一個不到一行就往下推
-const EVS = EVENTS.map((e) => ({ ...e, y: yr(e.date) - Y0, tip: `${ymd(e.date)}　${e.label}${e.note ? `：${e.note}` : ''}` })).filter((e) => e.y > 0 && e.y < Y1 - Y0).sort((a, b) => a.y - b.y)
 const events = computed(() => {
   let prev = -99
   return EVS.map((e) => ({ ...e, ly: (prev = Math.max(e.y * py.value, prev + 13 * f.value)) }))
@@ -277,33 +220,6 @@ function onWheel(e) {
 }
 
 // ── 資訊卡
-// 照片：維基百科條目的主圖（pageimages，只有自由授權的圖），載入後一次問完（一次最多 50 個條目）；沒有條目、沒有圖的就不放
-const photos = reactive({})
-async function loadPhotos() {
-  const titles = [...new Set([...blocks.map((b) => b.t.wiki).filter(Boolean), ...PRES.map((p) => p.name)])]
-  for (let i = 0; i < titles.length; i += 50) {
-    const part = titles.slice(i, i + 50)
-    try {
-      const q = new URLSearchParams({ action: 'query', prop: 'pageimages', piprop: 'thumbnail', pithumbsize: '240', pilimit: '50', redirects: '1', titles: part.join('|'), format: 'json', formatversion: '2', origin: '*' })
-      const d = (await (await fetch(`https://zh.wikipedia.org/w/api.php?${q}`)).json()).query ?? {}
-      // 條目名被正規化、重新導向時，回來的名字跟問的不一樣：一路對回去
-      const to = {}
-      for (const m of [...(d.normalized ?? []), ...(d.redirects ?? [])]) to[m.from] = m.to
-      const src = Object.fromEntries((d.pages ?? []).map((pg) => [pg.title, pg.thumbnail?.source]))
-      for (const t of part) {
-        let k = t
-        for (let n = 0; n < 4 && to[k]; n++) k = to[k]
-        if (src[k]) photos[t] = src[k]
-      }
-    } catch { /* 沒網路、被擋：就不放照片 */ }
-  }
-}
-// 在任多久：幾年幾個月
-function span(a, b) {
-  const [y1, m1, d1] = a.split('-').map(Number), [y2, m2, d2] = b.split('-').map(Number)
-  const m = (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0)
-  return m < 1 ? '不到 1 個月' : `${m >= 12 ? `${Math.floor(m / 12)} 年` : ''}${m % 12 ? ` ${m % 12} 個月` : ''}`.trim()
-}
 // 格子的底：黨色（不顯示政黨色＝灰）；非民選加斜線；開了「照片」而且有照片：照片鋪滿，上面蓋一層黨色（上濃下淡，字在上面看得清楚）
 const HATCH = 'repeating-linear-gradient(135deg, rgba(22, 22, 22, 0.4) 0 2px, transparent 2px 6px)'
 function bg(color, title, note) {
@@ -311,33 +227,11 @@ function bg(color, title, note) {
   const img = [note && HATCH, photo && `linear-gradient(${c}f2 0, ${c}b3 2.5em, ${c}33 6em)`, photo && `url("${photo}")`].filter(Boolean)
   return { backgroundColor: c, ...(img.length ? { backgroundImage: img.join(', '), backgroundSize: img.map((_, i) => (photo && i === img.length - 1 ? 'cover' : 'auto')).join(', '), backgroundPosition: 'center top' } : {}) }
 }
-// 生卒、歲數，寫成「生日-死亡 (XX歲)」（維基數據的出生、逝世日；只知道年的寫年、歲數加「約」；在世的死亡留空）：’27.06.10-’13.04.13 (85歲)／’64.12.23- (61歲)
-function life(key) {
-  const w = H.people?.[key]
-  if (!w?.born && !w?.died) return ''
-  const day = (d) => (d ? ymd(d) : '')
-  let age = ''
-  if (w.born) {
-    const end = w.died ?? H.asOf, exact = w.born.length > 4 && end.length > 4
-    const n = +end.slice(0, 4) - +w.born.slice(0, 4) - (exact && end.slice(5) < w.born.slice(5) ? 1 : 0)
-    age = ` (${exact ? '' : '約'}${n}歲)`
-  }
-  return `${day(w.born)}-${day(w.died)}${age}`
-}
 const tip = ref(null)
 function onHover(e) {
   const el = dragging.value ? null : e.target.closest?.('[data-i], [data-p]')
   if (!el) return (tip.value = null)
-  // 卡片跟著游標；靠右、靠下時翻到另一邊，不超出畫面
-  const pos = e.clientX > innerWidth - 320 ? { right: `${innerWidth - e.clientX + 14}px` } : { left: `${e.clientX + 16}px` }
-  Object.assign(pos, e.clientY > innerHeight - 210 ? { bottom: `${innerHeight - e.clientY + 12}px` } : { top: `${e.clientY + 18}px` })
-  if (el.dataset.p != null) {
-    const p = PRES[el.dataset.p], end = p.end ?? H.asOf
-    tip.value = { pos, name: p.name, tags: p.end ? [] : ['現任'], color: COLOR[p.party], party: p.party === 'kmt' ? '中國國民黨' : '民主進步黨', unit: '中華民國總統', from: ymd(p.start), to: ymd(end, H.asOf), dur: span(p.start, end), terms: p.cuts.length + 1, note: p.note, photo: photos[p.name], life: life(p.name) }
-  } else {
-    const b = blocks[el.dataset.i], t = b.t
-    tip.value = { pos, name: t.name, tags: b.tags, color: b.color, party: t.partyName, unit: `${t.unit}${t.unit.endsWith('市') ? '市長' : '縣長'}`, from: ymd(t.start), to: ymd(t.end, H.asOf), dur: span(t.start, t.end), terms: b.cuts.length + 1, photo: photos[t.wiki], life: life(t.wiki ?? t.name) }
-  }
+  tip.value = el.dataset.p != null ? presTip(PRES[el.dataset.p], tipPos(e)) : termTip(blocks[el.dataset.i].t, tipPos(e))
 }
 
 // 開了拖曳：滑鼠按住拖曳＝移動；沒拖動就是點擊（格子開這位首長的維基條目，縣市名開縣市的條目）
@@ -368,7 +262,7 @@ function onUp(e) {
   dragging.value = false
 }
 function onKey(e) {
-  if (e.altKey || e.target.tagName === 'INPUT') return
+  if (!props.active || e.altKey || e.target.tagName === 'INPUT') return
   if (e.key === '+' || e.key === '=') zoomStep(1)
   else if (e.key === '-' || e.key === '_') zoomStep(-1)
   else if (e.key === '0') reset()
@@ -381,6 +275,7 @@ onMounted(() => {
   let first = true
   ro = new ResizeObserver(() => {
     const r = scroller.value.getBoundingClientRect()
+    if (!r.width) return // 切到地圖分頁、這一頁藏起來的時候
     if (first) ax = AXIS.value, ay = HEAD, ux = uy = 0, first = false
     else anchor(axisW.value, headH.value)
     size.w = scroller.value.clientWidth, size.h = r.height // 寬不含直的捲軸（位置固定留著，見 scrollbar-gutter）
@@ -398,42 +293,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.page { display: flex; flex-direction: column; height: 100%; }
-.bar, .foot, .toolbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 6px 12px; font-size: 12px; background: var(--chrome); }
-.bar { justify-content: center; border-bottom: 1px solid var(--line); } /* 標題放中間 */
-.toolbar { padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--bg); }
-.foot { border-top: 1px solid var(--line); padding: 4px 12px; }
-.bar h1 { margin: 0; text-align: center; font-size: 15px; font-weight: 700; line-height: 1.5; }
-.lg { display: flex; align-items: center; gap: 5px; color: var(--muted); white-space: nowrap; }
-.lg i { width: 14px; height: 10px; border-radius: 2px; }
-.lg i.noted { background-image: repeating-linear-gradient(135deg, rgba(22, 22, 22, 0.4) 0 2px, transparent 2px 6px); }
-.lg i.acting { box-shadow: inset 0 0 0 20px rgba(22, 22, 22, 0.45); }
-/* 工具列（Bootstrap 的 btn、vr、form-range）：一條圓角的底，裡面是扁平的圖示按鈕，一組一組用直線隔開 */
-.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; width: fit-content; max-width: 100%; padding: 3px 8px; border-radius: 999px; background: var(--chrome); box-shadow: inset 0 0 0 1px var(--line); }
-.tb-grp { display: flex; align-items: center; gap: 2px; }
-.ctl .vr { align-self: center; height: 18px; margin: 0 2px; color: #fff; }
-.ctl .form-range { width: 110px; margin: 0 4px; }
-.pct { min-width: 40px; padding-right: 4px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
-
-.credit { display: flex; gap: 14px; margin-left: auto; padding-left: 12px; white-space: nowrap; }
-.credit { gap: 8px; }
-.credit .ver { color: var(--dim); font-variant-numeric: tabular-nums; }
-.credit a { color: var(--dim); }
-.credit a:hover { color: var(--accent); }
-.lbl-s { display: none; }
-/* 手機版面：按鈕只留圖示；工具列、圖例不換行，放不下用滑的 */
-@media (max-width: 720px) {
-  .lbl { display: none; }
-  .lbl-s { display: inline; }
-  .bar { flex-wrap: nowrap; }
-  .bar h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .toolbar, .foot, .ctl { flex-wrap: nowrap; }
-  .toolbar, .foot { overflow-x: auto; scrollbar-width: none; }
-  .toolbar::-webkit-scrollbar, .foot::-webkit-scrollbar { display: none; }
-  .ctl { width: max-content; max-width: none; }
-  .ctl > * { flex: none; }
-  .ctl .form-range { width: 72px; }
-}
+.pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 .scroller { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; outline: 0; cursor: default; user-select: none; -webkit-user-select: none; overscroll-behavior: contain; }
 .scroller.nav { cursor: grab; }
@@ -453,46 +313,7 @@ onBeforeUnmount(() => {
 .axis { grid-area: 3 / 2; left: 0; z-index: 2; }
 .corner, .heads { background: var(--chrome); border-bottom: 1px solid var(--grid-strong); }
 .corner, .axis { border-right: 1px solid var(--grid-strong); }
-.head { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; border-right: 1px solid var(--grid); text-align: center; font-size: 1.09em; line-height: 1.2; white-space: nowrap; }
-.head b { font-weight: 600; }
-.head .subs { display: flex; color: #999; font-size: 0.83em; }
-.head .subs span { flex: 1; }
-.heads .head b, .heads .subs span { cursor: pointer; }
-.heads .head b:hover, .heads .subs span:hover { color: var(--accent); }
-.year { position: absolute; left: 0; transform: translateY(-50%); color: #888; font-size: 0.91em; text-align: center; font-variant-numeric: tabular-nums; }
-.leads { position: absolute; top: 0; overflow: visible; }
-.leads path { fill: none; stroke: rgba(255, 221, 120, 0.7); stroke-width: 1; }
-.ev { position: absolute; transform: translateY(-50%); padding-left: 1em; color: #ffdd78; line-height: 1.2; white-space: nowrap; }
-.ev.up { color: #9fd6dc; } /* 縣市升格／改制 */
-.ev small { margin-right: 0.5em; color: var(--muted); font-size: 0.86em; font-variant-numeric: tabular-nums; }
 /* 格子區：直線＝欄的格線，橫線＝年份 */
 .body { grid-area: 3 / 3; position: relative; background-image: linear-gradient(to right, var(--grid) 1px, transparent 1px); background-position: -1px 0; }
 .line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--grid); }
-.blk { position: absolute; overflow: clip; transition: transform 0.12s ease-out, filter 0.12s, box-shadow 0.12s; border-radius: 2px; color: #fff; line-height: 1.2; cursor: pointer; }
-/* 滑鼠移上去：那一格放大、變亮、浮起來（不畫白框） */
-.blk:hover { z-index: 1; transform: scale(1.12); filter: brightness(1.15); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6); }
-/* 名字：四邊跟格子留 Bootstrap 的 p-1（0.25rem）；格子比畫面長、捲過頭時留在看得到的地方（貼著凍結的列、欄）；
-   註記接在名字後面，欄太窄放不下就折到下一行 */
-.blk span { position: sticky; display: block; width: fit-content; max-width: 100%; padding: 0.25rem; text-shadow: 0 0 2px rgba(0, 0, 0, 0.5); }
-.blk b { font-weight: inherit; white-space: nowrap; }
-.blk small { display: block; line-height: 1.1; white-space: nowrap; opacity: 0.8; font-size: 0.77em; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-.blk .cut { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255, 255, 255, 0.6); } /* 連任的交界 */
-.blk.noted { background-image: repeating-linear-gradient(135deg, rgba(22, 22, 22, 0.4) 0 2px, transparent 2px 6px); } /* 非民選：黨色＋斜線 */
-.blk em { display: inline-block; margin-left: 1px; padding: 0 1px; vertical-align: 0.1em; border-radius: 2px; background: rgba(22, 22, 22, 0.75); font-style: normal; font-size: 0.7em; letter-spacing: -0.03em; white-space: nowrap; } /* 註記（官派、代理、補選、現任）：接在名字後面 */
-.blk em.now { padding: 0; background: none; opacity: 0.9; } /* 現任：不要黑底 */
-.blk.acting::before { content: ''; position: absolute; inset: 0; background: rgba(22, 22, 22, v-bind(ACTING_DIM)); } /* 代理：黨色壓暗、字不變 */
-/* 資訊卡 */
-.tipcard { position: fixed; z-index: 20; display: flex; gap: 12px; width: max-content; max-width: 300px; padding: 12px; border: 1px solid #3a3d3f; border-radius: 10px; background: rgba(28, 30, 31, 0.97); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55); color: var(--text); font-size: 12px; line-height: 1.5; pointer-events: none; }
-.tipcard img { flex: none; width: 72px; height: 96px; border-radius: 6px; object-fit: cover; object-position: top; background: #2a2c2d; }
-.tc-body { min-width: 0; }
-.tc-name { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 16px; font-weight: 700; line-height: 1.3; }
-.tc-name .badge { padding: 2px 6px; border-radius: 4px; background: #3d4144; color: var(--text); font-size: 11px; font-weight: 500; }
-.tc-row { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.tc-row i { flex: none; width: 10px; height: 10px; border-radius: 2px; }
-.tc-unit { color: var(--muted); }
-.tc-life { margin: -2px 0 4px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.tc-date { margin-top: 4px; font-variant-numeric: tabular-nums; }
-.tc-dim { color: var(--dim); white-space: normal; }
-.tc-link { margin-top: 6px; gap: 3px; color: var(--accent); font-size: 11px; }
-.tc-link .material-symbols-outlined { font-size: 14px; }
 </style>
