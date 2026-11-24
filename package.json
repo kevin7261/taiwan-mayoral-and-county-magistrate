@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "build:data": "python3 scripts/build_mayor_history.py",
-    "deploy": "vite build && gh-pages-clean && gh-pages -d dist"
+    "deploy": "vite build && gh-pages-clean && gh-pages -d dist -o upstream"
   },
   "dependencies": {
     "bootstrap": "^5.3.9",
