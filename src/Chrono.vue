@@ -4,11 +4,11 @@
     <header class="bar">
       <h1>臺灣縣市長編年表</h1>
     </header>
-    <!-- 工具列（Bootstrap 元件、Material Symbols 圖示）：顯示什麼、字級、滾輪縮放／拖曳、縮放、回到預設 -->
+    <!-- 工具列（Bootstrap 元件、Material Symbols 圖示）：顯示什麼、字級、縮放、滾輪縮放模式／拖曳模式、回到預設 -->
     <div class="toolbar">
       <div class="ctl" role="toolbar" aria-label="工具列">
         <div class="tb-grp" role="group" aria-label="格子上顯示什麼">
-          <button v-for="[k, l, icon] in SHOW" :key="k" type="button" class="btn btn-sm btn-tb" :class="{ active: show[k] }" :aria-pressed="show[k]" :title="`顯示${l}`" @click="show[k] = !show[k]"><span class="material-symbols-outlined">{{ icon }}</span><span class="lbl">{{ l }}</span></button>
+          <button v-for="[k, l] in SHOW" :key="k" type="button" class="btn btn-sm btn-tb" :class="{ active: show[k] }" :aria-pressed="show[k]" :title="`顯示${l}`" @click="show[k] = !show[k]">{{ l }}</button>
         </div>
         <div class="vr"></div>
         <div class="tb-grp" role="group" aria-label="字級">
@@ -23,9 +23,12 @@
           <span class="pct">{{ Math.round(z * 100) }}%</span>
         </div>
         <div class="vr"></div>
-        <button type="button" class="btn btn-sm btn-tb" :class="{ active: nav }" :aria-pressed="nav" title="開：滾輪＝縮放、按住拖曳＝移動（表的四周可以拖出去）；關：滾輪＝一般捲動" @click="setNav(!nav)"><span class="material-symbols-outlined">pan_tool</span><span class="lbl">滾輪縮放／拖曳</span></button>
+        <div class="tb-grp" role="group" aria-label="操作模式">
+          <button type="button" class="btn btn-sm btn-tb" :class="{ active: wheel }" :aria-pressed="wheel" title="開：滾輪＝縮放（以游標為中心）；關：滾輪＝一般捲動" @click="wheel = !wheel">滾輪縮放模式</button>
+          <button type="button" class="btn btn-sm btn-tb" :class="{ active: nav }" :aria-pressed="nav" title="開：按住拖曳＝移動（表的四周可以拖出去）；關：不能拖" @click="setNav(!nav)">拖曳模式</button>
+        </div>
         <div class="vr"></div>
-        <button type="button" class="btn btn-sm btn-tb" title="縮放 100%、字級、顯示項目、滾輪縮放／拖曳都回到預設（0）" :disabled="isDefault" @click="reset"><span class="material-symbols-outlined">restart_alt</span><span class="lbl">回到預設</span></button>
+        <button type="button" class="btn btn-sm btn-tb" title="縮放 100%、字級、顯示項目、滾輪縮放模式、拖曳模式都回到預設（0）" :disabled="isDefault" @click="reset"><span class="material-symbols-outlined">restart_alt</span><span class="lbl">回到預設</span></button>
       </div>
     </div>
 
@@ -50,7 +53,7 @@
           <span v-for="y in ticks" :key="y" class="year" :title="y" :style="{ top: `${(y - Y0) * py}px`, width: `${YEAR_W * f}px` }">’{{ String(y).slice(2) }}</span>
           <div v-for="(p, i) in pres" :key="p.name" class="blk" :aria-label="p.tip" :data-p="i" :data-url="wiki(p.name)" :style="{ left: `${YEAR_W * f + 2}px`, width: `${PRES_W * f - 4}px`, top: `${p.a * py}px`, height: `${p.h}px`, ...bg(COLOR[p.party], p.name) }">
             <i v-for="c in p.cuts" :key="c" class="cut" :style="{ top: `${c * py}px` }"></i>
-            <span v-if="p.hf >= 11 && (show.name || show.time)" :class="{ tight: p.hf < 42 }" :style="{ top: `${headH}px` }"><template v-if="show.name"><b>{{ p.name }}</b><em v-if="!p.end" class="now">現任</em></template><template v-if="show.time"><small v-if="p.hf >= (show.name ? 23 : 10)">{{ ymd(p.start) }}</small><small v-if="p.hf >= (show.name ? 32 : 20)">{{ ymd(p.end ?? H.asOf, H.asOf) }}</small></template></span>
+            <span v-if="p.hf >= 11 && (show.name || show.time)" :style="{ top: `${headH}px` }"><template v-if="show.name"><b>{{ p.name }}</b><em v-if="!p.end" class="now">現任</em></template><template v-if="show.time"><small v-if="p.hf >= (show.name ? 27 : 14)">{{ ymd(p.start) }}</small><small v-if="p.hf >= (show.name ? 36 : 23)">{{ ymd(p.end ?? H.asOf, H.asOf) }}</small></template></span>
           </div>
           <!-- 大事：日期＋名稱；擠在一起的往下排開，引線指回實際的時間 -->
           <svg v-if="EV_W" class="leads" :style="{ left: `${(YEAR_W + PRES_W) * f}px` }" width="12" height="1"><path v-for="e in events" :key="e.date + e.label" :d="`M1 ${e.y * py}L${9 * f} ${e.ly}`" /></svg>
@@ -62,7 +65,7 @@
           <div v-for="(b, i) in shown" :key="b.id" class="blk" :class="{ acting: b.t.acting, noted: b.t.note }" :aria-label="b.tip" :data-i="i" :data-url="b.url"
             :style="{ left: `${b.col * px}px`, width: `${b.span * px - 2}px`, top: `${b.a * py}px`, height: `${b.h}px`, ...bg(b.color, b.t.wiki, b.t.note) }">
             <i v-for="c in b.cuts" :key="c" class="cut" :style="{ top: `${c * py}px` }"></i>
-            <span v-if="b.hf >= 11 && (show.name || show.time)" :class="{ tight: b.hf < 42 }" :style="{ top: `${headH}px`, left: `${axisW}px` }"><template v-if="show.name"><b>{{ b.t.name }}</b><em v-for="g in b.tags" :key="g" :class="{ now: g === '現任' }">{{ g }}</em></template><template v-if="show.time"><small v-if="b.hf >= (show.name ? 23 : 10)">{{ ymd(b.t.start) }}</small><small v-if="b.hf >= (show.name ? 32 : 20)">{{ ymd(b.t.end, H.asOf) }}</small></template><small v-if="show.color && b.hf >= 58 && px / f >= 90">{{ b.t.partyName }}</small></span>
+            <span v-if="b.hf >= 11 && (show.name || show.time)" :style="{ top: `${headH}px`, left: `${axisW}px` }"><template v-if="show.name"><b>{{ b.t.name }}</b><em v-for="g in b.tags" :key="g" :class="{ now: g === '現任' }">{{ g }}</em></template><template v-if="show.time"><small v-if="b.hf >= (show.name ? 27 : 14)">{{ ymd(b.t.start) }}</small><small v-if="b.hf >= (show.name ? 36 : 23)">{{ ymd(b.t.end, H.asOf) }}</small></template><small v-if="show.color && b.hf >= 58 && px / f >= 90">{{ b.t.partyName }}</small></span>
           </div>
         </div>
       </div>
@@ -89,7 +92,7 @@
       <span class="lg"><i class="acting" :style="{ background: COLOR.kmt }"></i>代理</span>
       <span class="lg"><i class="noted" :style="{ background: COLOR.kmt }"></i>非民選</span>
       <span class="credit">
-        <a href="https://zh.wikipedia.org/wiki/臺北市市長" target="_blank" rel="noopener" :title="`中文維基百科各縣市「XX縣縣長」「XX市市長」條目，到 ${H.asOf}`">資料：中文維基百科（{{ H.asOf }}）</a>
+        <span class="ver" title="版本">v{{ VERSION }}</span>
         <a href="https://github.com/szfftz/taiwan-mayoral-and-county-magistrate" target="_blank" rel="noopener">szfftz</a>
       </span>
     </footer>
@@ -100,8 +103,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import H from './data/mayor-history.json'
 import { EVENTS, PARTY_SHORT, PRESIDENTS } from './central.js'
-import { COLOR, MERGED, MERGE_DAY, UNKNOWN, colorOf, sameRun, tagsOf, yr, ymd, ymdFull } from './parties.js'
+import { COLOR, MERGED, MERGE_DAY, UNKNOWN, colorOf, sameRun, tagsOf, yr, ymd } from './parties.js'
 
+const VERSION = __APP_VERSION__ // package.json 的 version（vite.config.js 的 define）
 const ACTING_DIM = 0.45 // 代理：黨色上面蓋一層 45% 的黑
 const PLAIN = '#4a4c4b' // 不顯示政黨色時格子的顏色
 const YEAR_W = 28, HEAD = 40 // 年份欄的寬、上面縣市名那一列的高（100%、預設字級時的 px）
@@ -110,7 +114,7 @@ const NARROW = 720 // 畫面比這個窄＝手機版面
 const MIN_Z = 0.25, MAX_Z = 4 // 縮放範圍（100%＝整張表剛好放進畫面）
 const STOPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.25, 1.5, 2, 3, 4] // ＋／－ 按鈕一次跳一格
 const FONTS = [0.7, 0.8, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2] // 字級（A－／A＋ 一次跳一格）
-const SHOW = [['name', '市長名', 'person'], ['color', '政黨色', 'palette'], ['time', '時間', 'schedule'], ['photo', '照片', 'image']] // 格子上顯示什麼（圖示＝Material Symbols）
+const SHOW = [['name', '市長名'], ['color', '政黨色'], ['time', '時間'], ['photo', '照片']] // 格子上顯示什麼（這一組按鈕只有字，不放圖示）
 
 // 縣市由北到南、再東部、離島；合併的三個縣市佔兩欄（市、縣）
 const ORDER = ['臺北市', '新北市', '基隆市', '桃園市', '新竹市', '新竹縣', '苗栗縣', '臺中市', '彰化縣', '南投縣', '雲林縣', '嘉義市', '嘉義縣', '臺南市', '高雄市', '屏東縣', '宜蘭縣', '花蓮縣', '臺東縣', '澎湖縣', '金門縣', '連江縣']
@@ -170,7 +174,8 @@ const PRES_W = computed(() => (compact.value ? 48 : 60)), EV_W = computed(() => 
 const AXIS = computed(() => YEAR_W + PRES_W.value + EV_W.value)
 const show = reactive({ name: true, color: true, time: true, photo: false }) // 照片（格子的底）預設關
 const fs = ref(1) // 字級
-const nav = ref(false) // 滾輪縮放、拖曳移動（預設關：滾輪照一般捲動，像試算表）
+const wheel = ref(false) // 滾輪縮放模式（預設關：滾輪照一般捲動，像試算表）
+const nav = ref(false) // 拖曳模式（預設關）：按住拖曳＝移動，表的四周留空白可以拖出去
 const z = ref(1), zT = ref(1) // 現在的倍數、要去的倍數
 const f = computed(() => fs.value * Math.sqrt(z.value))
 const axisW = computed(() => AXIS.value * f.value), headH = computed(() => HEAD * f.value)
@@ -188,7 +193,7 @@ const ticks = computed(() => {
   for (let v = Math.ceil(Y0 / step) * step; v <= Y1; v += step) out.push(v)
   return out
 })
-// 格子的高（hf＝換算回預設字級的高：放不放得下名字、日期）。名字 ≥ 11；加就任日 ≥ 23；再加卸任日 ≥ 32（任期三年的格子在 100% 剛好放得下）
+// 格子的高（hf＝換算回預設字級的高：放不放得下名字、日期）。名字四邊一律留 p-1（0.25rem）。名字 ≥ 11；加就任日 ≥ 27；再加卸任日 ≥ 36
 const sized = (b) => { const h = Math.max(1, (b.b - b.a) * py.value - 1); return { ...b, h, hf: h / f.value } }
 const shown = computed(() => blocks.map(sized))
 const PRES = PRESIDENTS.map((p) => {
@@ -197,7 +202,7 @@ const PRES = PRESIDENTS.map((p) => {
 }).filter((p) => p.b > p.a)
 const pres = computed(() => PRES.map(sized))
 // 大事：照時間排，跟上一個不到一行就往下推
-const EVS = EVENTS.map((e) => ({ ...e, y: yr(e.date) - Y0, tip: `${e.date}　${e.label}${e.note ? `：${e.note}` : ''}` })).filter((e) => e.y > 0 && e.y < Y1 - Y0).sort((a, b) => a.y - b.y)
+const EVS = EVENTS.map((e) => ({ ...e, y: yr(e.date) - Y0, tip: `${ymd(e.date)}　${e.label}${e.note ? `：${e.note}` : ''}` })).filter((e) => e.y > 0 && e.y < Y1 - Y0).sort((a, b) => a.y - b.y)
 const events = computed(() => {
   let prev = -99
   return EVS.map((e) => ({ ...e, ly: (prev = Math.max(e.y * py.value, prev + 13 * f.value)) }))
@@ -245,19 +250,19 @@ function setFont(v) {
   apply(z.value)
 }
 const fontStep = (dir) => setFont((dir > 0 ? FONTS.find((s) => s > fs.value + 0.001) : FONTS.findLast((s) => s < fs.value - 0.001)) ?? fs.value)
-// 開關滾輪縮放／拖曳：四周的空白跟著有、沒有，畫面左上角那一點留在原地
+// 開關拖曳模式：四周的空白跟著有、沒有，畫面左上角那一點留在原地
 function setNav(v) {
   anchor(axisW.value, headH.value)
   nav.value = v
   if (!raf) apply(z.value)
 }
-// 回到預設：100%、預設字級、三樣都顯示、滾輪縮放／拖曳關掉、捲回左上角
-const isDefault = computed(() => zT.value === 1 && fs.value === 1 && show.name && show.color && show.time && !show.photo && !nav.value)
+// 回到預設：100%、預設字級、三樣都顯示、滾輪縮放模式、拖曳模式關掉、捲回左上角
+const isDefault = computed(() => zT.value === 1 && fs.value === 1 && show.name && show.color && show.time && !show.photo && !wheel.value && !nav.value)
 function reset() {
   show.name = show.color = show.time = true
   show.photo = false
   fs.value = 1
-  nav.value = false
+  wheel.value = nav.value = false
   zoomTo(1)
   ax = AXIS.value, ay = HEAD, ux = uy = 0 // 表的左上角對齊凍結的欄、列
 }
@@ -265,7 +270,7 @@ function reset() {
 // 開了滾輪縮放：滾輪＝縮放（以游標為中心），Shift＋滾輪、橫向滑＝照一般左右捲動；沒開：滾輪照一般捲動
 // 觸控板捏合、Ctrl＋滾輪不管開關都是縮放（不然瀏覽器會把整頁放大）
 function onWheel(e) {
-  if (!e.ctrlKey && (!nav.value || e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY))) return
+  if (!e.ctrlKey && (!wheel.value || e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY))) return
   e.preventDefault()
   const r = scroller.value.getBoundingClientRect(), d = e.deltaY * (e.deltaMode === 1 ? 16 : 1)
   zoomTo(zT.value * Math.exp(-d * (e.ctrlKey ? 0.012 : 0.0022)), e.clientX - r.left, e.clientY - r.top) // 捏合的數值小，倍率大一點
@@ -306,18 +311,18 @@ function bg(color, title, note) {
   const img = [note && HATCH, photo && `linear-gradient(${c}f2 0, ${c}b3 2.5em, ${c}33 6em)`, photo && `url("${photo}")`].filter(Boolean)
   return { backgroundColor: c, ...(img.length ? { backgroundImage: img.join(', '), backgroundSize: img.map((_, i) => (photo && i === img.length - 1 ? 'cover' : 'auto')).join(', '), backgroundPosition: 'center top' } : {}) }
 }
-// 生卒、歲數（維基數據的出生、逝世日；只知道年的寫年、歲數加「約」）：1927.06.10 – 2013.04.13（85 歲）／1964.12.23 生（61 歲）
+// 生卒、歲數，寫成「生日-死亡 (XX歲)」（維基數據的出生、逝世日；只知道年的寫年、歲數加「約」；在世的死亡留空）：’27.06.10-’13.04.13 (85歲)／’64.12.23- (61歲)
 function life(key) {
   const w = H.people?.[key]
   if (!w?.born && !w?.died) return ''
-  const day = (d) => (d.length === 4 ? `${d} 年` : ymdFull(d))
+  const day = (d) => (d ? ymd(d) : '')
   let age = ''
   if (w.born) {
     const end = w.died ?? H.asOf, exact = w.born.length > 4 && end.length > 4
     const n = +end.slice(0, 4) - +w.born.slice(0, 4) - (exact && end.slice(5) < w.born.slice(5) ? 1 : 0)
-    age = `（${exact ? '' : '約 '}${n} 歲）`
+    age = ` (${exact ? '' : '約'}${n}歲)`
   }
-  return w.died ? `${w.born ? day(w.born) : '？'} – ${day(w.died)}${age}` : `${day(w.born)} 生${age}`
+  return `${day(w.born)}-${day(w.died)}${age}`
 }
 const tip = ref(null)
 function onHover(e) {
@@ -328,10 +333,10 @@ function onHover(e) {
   Object.assign(pos, e.clientY > innerHeight - 210 ? { bottom: `${innerHeight - e.clientY + 12}px` } : { top: `${e.clientY + 18}px` })
   if (el.dataset.p != null) {
     const p = PRES[el.dataset.p], end = p.end ?? H.asOf
-    tip.value = { pos, name: p.name, tags: p.end ? [] : ['現任'], color: COLOR[p.party], party: p.party === 'kmt' ? '中國國民黨' : '民主進步黨', unit: '中華民國總統', from: ymdFull(p.start), to: ymdFull(end, H.asOf), dur: span(p.start, end), terms: p.cuts.length + 1, note: p.note, photo: photos[p.name], life: life(p.name) }
+    tip.value = { pos, name: p.name, tags: p.end ? [] : ['現任'], color: COLOR[p.party], party: p.party === 'kmt' ? '中國國民黨' : '民主進步黨', unit: '中華民國總統', from: ymd(p.start), to: ymd(end, H.asOf), dur: span(p.start, end), terms: p.cuts.length + 1, note: p.note, photo: photos[p.name], life: life(p.name) }
   } else {
     const b = blocks[el.dataset.i], t = b.t
-    tip.value = { pos, name: t.name, tags: b.tags, color: b.color, party: t.partyName, unit: `${t.unit}${t.unit.endsWith('市') ? '市長' : '縣長'}`, from: ymdFull(t.start), to: ymdFull(t.end, H.asOf), dur: span(t.start, t.end), terms: b.cuts.length + 1, photo: photos[t.wiki], life: life(t.wiki ?? t.name) }
+    tip.value = { pos, name: t.name, tags: b.tags, color: b.color, party: t.partyName, unit: `${t.unit}${t.unit.endsWith('市') ? '市長' : '縣長'}`, from: ymd(t.start), to: ymd(t.end, H.asOf), dur: span(t.start, t.end), terms: b.cuts.length + 1, photo: photos[t.wiki], life: life(t.wiki ?? t.name) }
   }
 }
 
@@ -395,10 +400,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .page { display: flex; flex-direction: column; height: 100%; }
 .bar, .foot, .toolbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 6px 12px; font-size: 12px; background: var(--chrome); }
-.bar { border-bottom: 1px solid var(--line); }
+.bar { justify-content: center; border-bottom: 1px solid var(--line); } /* 標題放中間 */
 .toolbar { padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--bg); }
 .foot { border-top: 1px solid var(--line); padding: 4px 12px; }
-.bar h1 { margin: 0 6px 0 0; font-size: 15px; font-weight: 700; line-height: 1.5; }
+.bar h1 { margin: 0; text-align: center; font-size: 15px; font-weight: 700; line-height: 1.5; }
 .lg { display: flex; align-items: center; gap: 5px; color: var(--muted); white-space: nowrap; }
 .lg i { width: 14px; height: 10px; border-radius: 2px; }
 .lg i.noted { background-image: repeating-linear-gradient(135deg, rgba(22, 22, 22, 0.4) 0 2px, transparent 2px 6px); }
@@ -411,6 +416,8 @@ onBeforeUnmount(() => {
 .pct { min-width: 40px; padding-right: 4px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
 
 .credit { display: flex; gap: 14px; margin-left: auto; padding-left: 12px; white-space: nowrap; }
+.credit { gap: 8px; }
+.credit .ver { color: var(--dim); font-variant-numeric: tabular-nums; }
 .credit a { color: var(--dim); }
 .credit a:hover { color: var(--accent); }
 .lbl-s { display: none; }
@@ -461,15 +468,14 @@ onBeforeUnmount(() => {
 /* 格子區：直線＝欄的格線，橫線＝年份 */
 .body { grid-area: 3 / 3; position: relative; background-image: linear-gradient(to right, var(--grid) 1px, transparent 1px); background-position: -1px 0; }
 .line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--grid); }
-.blk { position: absolute; overflow: clip; border-radius: 2px; color: #fff; line-height: 1.2; cursor: pointer; }
-.blk:hover { outline: 1px solid #fff; z-index: 1; }
+.blk { position: absolute; overflow: clip; transition: transform 0.12s ease-out, filter 0.12s, box-shadow 0.12s; border-radius: 2px; color: #fff; line-height: 1.2; cursor: pointer; }
+/* 滑鼠移上去：那一格放大、變亮、浮起來（不畫白框） */
+.blk:hover { z-index: 1; transform: scale(1.12); filter: brightness(1.15); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6); }
 /* 名字：四邊跟格子留 Bootstrap 的 p-1（0.25rem）；格子比畫面長、捲過頭時留在看得到的地方（貼著凍結的列、欄）；
    註記接在名字後面，欄太窄放不下就折到下一行 */
 .blk span { position: sticky; display: block; width: fit-content; max-width: 100%; padding: 0.25rem; text-shadow: 0 0 2px rgba(0, 0, 0, 0.5); }
-.blk span.tight { padding-block: 0; } /* 格子矮（放不下名字＋兩行日期＋上下的留白）：上下不留，先讓日期放得下 */
-.blk span.tight small { line-height: 1.1; }
 .blk b { font-weight: inherit; white-space: nowrap; }
-.blk small { display: block; white-space: nowrap; opacity: 0.8; font-size: 0.77em; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.blk small { display: block; line-height: 1.1; white-space: nowrap; opacity: 0.8; font-size: 0.77em; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .blk .cut { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255, 255, 255, 0.6); } /* 連任的交界 */
 .blk.noted { background-image: repeating-linear-gradient(135deg, rgba(22, 22, 22, 0.4) 0 2px, transparent 2px 6px); } /* 非民選：黨色＋斜線 */
 .blk em { display: inline-block; margin-left: 1px; padding: 0 1px; vertical-align: 0.1em; border-radius: 2px; background: rgba(22, 22, 22, 0.75); font-style: normal; font-size: 0.7em; letter-spacing: -0.03em; white-space: nowrap; } /* 註記（官派、代理、補選、現任）：接在名字後面 */
