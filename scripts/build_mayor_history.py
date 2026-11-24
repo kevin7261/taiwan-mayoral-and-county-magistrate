@@ -16,9 +16,10 @@
 期間：全部（第一屆起）、1990 年後、1996 年後、1981–1990、1991–2000、2001–2010、2011–2026（只算期間內的天數）
 
 輸出 src/data/mayor-history.json：{ asOf, periods: { 期間: [起, 迄) }, parties, counties: { 縣市: { from, periods: { 期間: { days, share: {黨: 比例} } }, terms: [...] } },
+  people: { 維基條目名（沒有條目的用姓名）: { born?, died? }（YYYY-MM-DD，只知道年的寫 YYYY） },
   old: { 合併前的舊縣、舊市（臺中縣、臺中市（合併前）…）: 同上，只算自己那一邊 } }
 """
-import json, re, time, urllib.parse, urllib.request
+import json, re, subprocess, time, urllib.parse, urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 from bs4 import BeautifulSoup
@@ -159,6 +160,58 @@ SINCE = date(1945, 8, 15)
 counted = lambda t: not t.get('acting') and not t.get('note')  # 算進比例的：民選、不是代理
 
 
+YEARS = {}  # 條目名（沒有條目就用姓名）→ 表格名字旁寫的（生年, 卒年）
+PRESIDENTS = ['蔣中正', '嚴家淦', '蔣經國', '李登輝', '陳水扁', '馬英九', '蔡英文', '賴清德']  # 編年表左邊的總統欄（src/central.js），也要生卒日期
+
+
+def api(host, **q):
+    # 用 curl：這台的 Python 沒有根憑證，urllib 連 https 會驗證失敗
+    url = f'https://{host}/w/api.php?' + urllib.parse.urlencode({**q, 'format': 'json', 'formatversion': 2})
+    time.sleep(1)
+    return json.loads(subprocess.run(['curl', '-sS', '--fail', '--max-time', '120', '-A', UA, url], capture_output=True, text=True, check=True).stdout)
+
+
+# 生卒日期：條目 → 維基數據的出生日（P569）、逝世日（P570）；只知道年的就只寫年。查不到的用表格名字旁的年份。
+# 結果快取在 data/raw/people.json（重抓刪掉即可）
+def people(titles):
+    f = RAW.parent / 'people.json'
+    if f.exists():
+        got = json.loads(f.read_text())
+    else:
+        qid = {}
+        for i in range(0, len(titles), 50):
+            part = titles[i:i + 50]
+            d = api('zh.wikipedia.org', action='query', prop='pageprops', ppprop='wikibase_item', redirects=1, titles='|'.join(part))['query']
+            to = {m['from']: m['to'] for m in d.get('normalized', []) + d.get('redirects', [])}
+            item = {pg['title']: pg.get('pageprops', {}).get('wikibase_item') for pg in d.get('pages', [])}
+            for t in part:
+                k = t
+                for _ in range(4):
+                    k = to.get(k, k)
+                if item.get(k):
+                    qid[t] = item[k]
+
+        def when(claims, prop):
+            for c in sorted(claims.get(prop, []), key=lambda c: c.get('rank') != 'preferred'):
+                v = c.get('mainsnak', {}).get('datavalue', {}).get('value')
+                if v and c.get('rank') != 'deprecated':
+                    return v['time'][1:11] if v['precision'] >= 11 else v['time'][1:5]
+        got, ids = {}, sorted(set(qid.values()))
+        ent = {}
+        for i in range(0, len(ids), 50):
+            ent.update(api('www.wikidata.org', action='wbgetentities', ids='|'.join(ids[i:i + 50]), props='claims')['entities'])
+        for t, q in qid.items():
+            c = ent.get(q, {}).get('claims', {})
+            b, dd = when(c, 'P569'), when(c, 'P570')
+            if b or dd:
+                got[t] = {k: v for k, v in (('born', b), ('died', dd)) if v}
+        f.write_text(json.dumps(got, ensure_ascii=False, indent=0))
+    for t, (b, dd) in YEARS.items():  # 維基數據沒有的：用表格上的年份
+        if t not in got:
+            got[t] = {k: v for k, v in (('born', b), ('died', dd)) if v}
+    return got
+
+
 # 連結文字 → 維基條目名（紅字＝沒有條目的不要）
 def linked(el):
     return {a.get_text(strip=True): a['title'] for a in el.select('a[title]') if 'new' not in a.get('class', []) and a.get('href', '').startswith(('/wiki/', '/zh'))}
@@ -202,6 +255,9 @@ def terms(page, heads):
             if party not in PARTY_OF and (party or not note):
                 raise SystemExit(f'{page}：不認得的黨籍「{party}」')
             name = re.sub(r'（.*?）|\(.*?\)', '', r[ni]).strip()
+            m = re.search(r'[（(]\s*(\d{4})\s*[–－—-]\s*(\d{4})?\s*[）)]', r[ni])
+            if m:
+                YEARS[links.get(name, name)] = (m[1], m[2])
             out.append({'name': name, 'party': PARTY_OF.get(party), 'partyName': r[pi] if pi is not None and r[pi] else '黨籍不詳', 'start': a, 'end': b, 'unit': UNIT.get(page, page[:3]),
                         **({'acting': True} if acting else {}), **({'note': note} if note else {}), **({'wiki': links[name]} if name in links else {}),
                         **({'by': True} if not acting and not note and any('補選' in c for c in r) else {}),  # 備註寫了補選
@@ -337,7 +393,9 @@ def main():
             for side in (county, county[:2] + '縣'):
                 ts = sides[side]
                 old[OLD_KEY.get(side, side)] = {'from': first(ts), 'periods': periods_of([ts]), 'terms': iso(ts)}
-    out = {'asOf': AS_OF.isoformat(), 'periods': {k: [a and a.isoformat(), b.isoformat()] for k, (a, b) in PERIODS.items()}, 'parties': [{'key': k, 'label': l, 'names': n} for k, l, n in PARTIES], 'counties': counties, 'old': old}
+    who = people(sorted({t['wiki'] for c in counties.values() for t in c['terms'] if t.get('wiki')} | set(PRESIDENTS)))
+    print('生卒日期', len(who), '人')
+    out = {'asOf': AS_OF.isoformat(), 'periods': {k: [a and a.isoformat(), b.isoformat()] for k, (a, b) in PERIODS.items()}, 'parties': [{'key': k, 'label': l, 'names': n} for k, l, n in PARTIES], 'counties': counties, 'old': old, 'people': who}
     (ROOT / 'src/data/mayor-history.json').write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')))
 
 

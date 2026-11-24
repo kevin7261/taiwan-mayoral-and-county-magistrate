@@ -3,7 +3,6 @@
   <div class="page">
     <header class="bar">
       <h1>臺灣縣市長編年表</h1>
-      <a class="btn btn-sm btn-outline-secondary ms-auto" href="https://zh.wikipedia.org/wiki/臺北市市長" target="_blank" rel="noopener" :title="`中文維基百科各縣市「XX縣縣長」「XX市市長」條目，到 ${H.asOf}`"><span class="lbl">資料：中文維基百科（到 {{ H.asOf }}）</span><span class="lbl-s">維基百科</span><span class="material-symbols-outlined">open_in_new</span></a>
     </header>
     <!-- 工具列（Bootstrap 元件、Material Symbols 圖示）：顯示什麼、字級、滾輪縮放／拖曳、縮放、回到預設 -->
     <div class="toolbar">
@@ -74,6 +73,7 @@
       <img v-if="tip.photo" :src="tip.photo" alt="" />
       <div class="tc-body">
         <div class="tc-name">{{ tip.name }}<span v-for="g in tip.tags" :key="g" class="badge">{{ g }}</span></div>
+        <div v-if="tip.life" class="tc-row tc-life">{{ tip.life }}</div>
         <div class="tc-row"><i :style="{ background: tip.color }"></i>{{ tip.party }}</div>
         <div class="tc-row tc-unit">{{ tip.unit }}</div>
         <div class="tc-row tc-date">{{ tip.from }} – {{ tip.to }}</div>
@@ -88,6 +88,10 @@
       <span class="lg"><i :style="{ background: UNKNOWN }"></i>黨籍不詳</span>
       <span class="lg"><i class="acting" :style="{ background: COLOR.kmt }"></i>代理</span>
       <span class="lg"><i class="noted" :style="{ background: COLOR.kmt }"></i>非民選</span>
+      <span class="credit">
+        <a href="https://zh.wikipedia.org/wiki/臺北市市長" target="_blank" rel="noopener" :title="`中文維基百科各縣市「XX縣縣長」「XX市市長」條目，到 ${H.asOf}`">資料：中文維基百科（{{ H.asOf }}）</a>
+        <a href="https://github.com/szfftz/taiwan-mayoral-and-county-magistrate" target="_blank" rel="noopener">szfftz</a>
+      </span>
     </footer>
   </div>
 </template>
@@ -302,6 +306,19 @@ function bg(color, title, note) {
   const img = [note && HATCH, photo && `linear-gradient(${c}f2 0, ${c}b3 2.5em, ${c}33 6em)`, photo && `url("${photo}")`].filter(Boolean)
   return { backgroundColor: c, ...(img.length ? { backgroundImage: img.join(', '), backgroundSize: img.map((_, i) => (photo && i === img.length - 1 ? 'cover' : 'auto')).join(', '), backgroundPosition: 'center top' } : {}) }
 }
+// 生卒、歲數（維基數據的出生、逝世日；只知道年的寫年、歲數加「約」）：1927.06.10 – 2013.04.13（85 歲）／1964.12.23 生（61 歲）
+function life(key) {
+  const w = H.people?.[key]
+  if (!w?.born && !w?.died) return ''
+  const day = (d) => (d.length === 4 ? `${d} 年` : ymdFull(d))
+  let age = ''
+  if (w.born) {
+    const end = w.died ?? H.asOf, exact = w.born.length > 4 && end.length > 4
+    const n = +end.slice(0, 4) - +w.born.slice(0, 4) - (exact && end.slice(5) < w.born.slice(5) ? 1 : 0)
+    age = `（${exact ? '' : '約 '}${n} 歲）`
+  }
+  return w.died ? `${w.born ? day(w.born) : '？'} – ${day(w.died)}${age}` : `${day(w.born)} 生${age}`
+}
 const tip = ref(null)
 function onHover(e) {
   const el = dragging.value ? null : e.target.closest?.('[data-i], [data-p]')
@@ -311,10 +328,10 @@ function onHover(e) {
   Object.assign(pos, e.clientY > innerHeight - 210 ? { bottom: `${innerHeight - e.clientY + 12}px` } : { top: `${e.clientY + 18}px` })
   if (el.dataset.p != null) {
     const p = PRES[el.dataset.p], end = p.end ?? H.asOf
-    tip.value = { pos, name: p.name, tags: p.end ? [] : ['現任'], color: COLOR[p.party], party: p.party === 'kmt' ? '中國國民黨' : '民主進步黨', unit: '中華民國總統', from: ymdFull(p.start), to: ymdFull(end, H.asOf), dur: span(p.start, end), terms: p.cuts.length + 1, note: p.note, photo: photos[p.name] }
+    tip.value = { pos, name: p.name, tags: p.end ? [] : ['現任'], color: COLOR[p.party], party: p.party === 'kmt' ? '中國國民黨' : '民主進步黨', unit: '中華民國總統', from: ymdFull(p.start), to: ymdFull(end, H.asOf), dur: span(p.start, end), terms: p.cuts.length + 1, note: p.note, photo: photos[p.name], life: life(p.name) }
   } else {
     const b = blocks[el.dataset.i], t = b.t
-    tip.value = { pos, name: t.name, tags: b.tags, color: b.color, party: t.partyName, unit: `${t.unit}${t.unit.endsWith('市') ? '市長' : '縣長'}`, from: ymdFull(t.start), to: ymdFull(t.end, H.asOf), dur: span(t.start, t.end), terms: b.cuts.length + 1, photo: photos[t.wiki] }
+    tip.value = { pos, name: t.name, tags: b.tags, color: b.color, party: t.partyName, unit: `${t.unit}${t.unit.endsWith('市') ? '市長' : '縣長'}`, from: ymdFull(t.start), to: ymdFull(t.end, H.asOf), dur: span(t.start, t.end), terms: b.cuts.length + 1, photo: photos[t.wiki], life: life(t.wiki ?? t.name) }
   }
 }
 
@@ -393,6 +410,9 @@ onBeforeUnmount(() => {
 .ctl .form-range { width: 110px; margin: 0 4px; }
 .pct { min-width: 40px; padding-right: 4px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
 
+.credit { display: flex; gap: 14px; margin-left: auto; padding-left: 12px; white-space: nowrap; }
+.credit a { color: var(--dim); }
+.credit a:hover { color: var(--accent); }
 .lbl-s { display: none; }
 /* 手機版面：按鈕只留圖示；工具列、圖例不換行，放不下用滑的 */
 @media (max-width: 720px) {
@@ -464,6 +484,7 @@ onBeforeUnmount(() => {
 .tc-row { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .tc-row i { flex: none; width: 10px; height: 10px; border-radius: 2px; }
 .tc-unit { color: var(--muted); }
+.tc-life { margin: -2px 0 4px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .tc-date { margin-top: 4px; font-variant-numeric: tabular-nums; }
 .tc-dim { color: var(--dim); white-space: normal; }
 .tc-link { margin-top: 6px; gap: 3px; color: var(--accent); font-size: 11px; }
