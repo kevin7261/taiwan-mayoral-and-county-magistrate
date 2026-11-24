@@ -9,13 +9,15 @@ export function yr(d) {
   const [y, m, dd] = d.split('-').map(Number)
   return y + (Date.UTC(y, m - 1, dd) - Date.UTC(y, 0, 1)) / (Date.UTC(y + 1, 0, 1) - Date.UTC(y, 0, 1))
 }
-// 任期的日期寫法：1951.02.01；現任寫「現任」
-export const ymd = (d, asOf) => (d === asOf ? '現任' : d.replaceAll('-', '.'))
+// 任期的日期寫法：年份省掉 19／20，寫成 ’51.02.01；現任寫「現任」
+export const ymd = (d, asOf) => (d === asOf ? '現任' : `’${d.slice(2).replaceAll('-', '.')}`)
+// 完整的寫法（資訊卡用）：1951.02.01
+export const ymdFull = (d, asOf) => (d === asOf ? '現任' : d.replaceAll('-', '.'))
 
 // 黨籍不詳（官派、縣轄市時期有些表沒寫黨籍）
 export const UNKNOWN = '#6b6b6b'
 export const colorOf = (t) => COLOR[t.party] ?? UNKNOWN
-// 格子上的名字：代理加括號
-export const nameOf = (t) => (t.acting ? `（${t.name}）` : t.name)
-// 同一人連任才合成一格：民選／官派、代理要一樣（高玉樹 1964 民選、1967 改官派要分開）
-export const sameRun = (a, b) => a.name === b.name && a.end === b.start && a.note === b.note && !!a.acting === !!b.acting && b.start !== MERGE_DAY
+// 格子上名字旁邊的註記：非民選（官派、戰地政務）、代理、補選
+export const tagsOf = (t) => [t.note, t.acting && '代理', t.by && '補選'].filter(Boolean)
+// 同一人連任才合成一格：民選／官派、代理、補選要一樣（高玉樹 1964 民選、1967 改官派要分開；補選那一任自己一格）
+export const sameRun = (a, b) => a.name === b.name && a.end === b.start && a.note === b.note && !!a.acting === !!b.acting && !!a.by === !!b.by && b.start !== MERGE_DAY

@@ -12,6 +12,11 @@
   --panel-w: 320px;
   --font: 'Overpass', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'PingFang TC', sans-serif;
   font-family: var(--font);
+  /* Bootstrap：字型、底色、主色接過來 */
+  --bs-body-font-family: var(--font);
+  --bs-body-bg: var(--bg);
+  --bs-body-color: var(--text);
+  --bs-border-color: var(--line);
   color: var(--text);
   background: var(--bg);
   color-scheme: dark;
@@ -21,14 +26,19 @@ html, body, #app { height: 100%; }
 body { margin: 0; background: var(--bg); }
 a { color: inherit; text-decoration: none; }
 
-/* 工具列的按鈕 */
-.tool-label { margin-right: 2px; color: var(--muted); font-size: 12px; white-space: nowrap; }
-.tool-chip {
-  padding: 3px 9px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
-  background: transparent; color: var(--muted); font: inherit; font-size: 12px; white-space: nowrap;
-}
-.tool-chip:hover { border-color: var(--accent); color: var(--accent); }
-.tool-chip.on { border-color: var(--accent); background: var(--accent); color: var(--bg); }
+/* Google Material Symbols：跟字一樣高、對齊中間 */
+.material-symbols-outlined { font-size: 18px; line-height: 1; vertical-align: middle; user-select: none; }
+
+/* Bootstrap 元件：小一號，主色用這一頁的青色 */
+.btn-sm, .btn-group-sm > .btn { --bs-btn-padding-y: 1px; --bs-btn-padding-x: 7px; --bs-btn-font-size: 12px; --bs-btn-border-radius: 5px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.btn-outline-secondary { --bs-btn-color: var(--muted); --bs-btn-border-color: #44474a; --bs-btn-hover-bg: rgba(255, 255, 255, 0.1); --bs-btn-hover-border-color: #6a6d70; --bs-btn-hover-color: var(--text); --bs-btn-active-bg: var(--accent); --bs-btn-active-border-color: var(--accent); --bs-btn-active-color: var(--bg); --bs-btn-disabled-color: #777; --bs-btn-disabled-border-color: #3a3c3b; }
+/* 工具列的按鈕：扁平（沒有框），滑鼠移上去才有底色，開著的＝青色 */
+.btn-tb { --bs-btn-padding-y: 3px; --bs-btn-padding-x: 7px; --bs-btn-border-radius: 6px; --bs-btn-color: var(--text); --bs-btn-bg: transparent; --bs-btn-border-color: transparent; --bs-btn-hover-color: #fff; --bs-btn-hover-bg: rgba(255, 255, 255, 0.1); --bs-btn-hover-border-color: transparent; --bs-btn-active-color: var(--accent); --bs-btn-active-bg: rgba(95, 183, 191, 0.2); --bs-btn-active-border-color: transparent; --bs-btn-disabled-color: #6c6f70; --bs-btn-disabled-border-color: transparent; }
+.btn-tb .material-symbols-outlined { font-size: 20px; }
+.form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
+.form-check-input:focus, .form-range:focus::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(95, 183, 191, 0.25); border-color: var(--accent); }
+.form-range::-webkit-slider-thumb { background-color: var(--accent); }
+.form-range::-moz-range-thumb { background-color: var(--accent); }
 
 /* 圖例的一列：色塊＋說明＋右邊的數字 */
 .lg-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 12px; }

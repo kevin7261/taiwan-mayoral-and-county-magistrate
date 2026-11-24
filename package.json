@@ -10,6 +10,7 @@
     "build:data": "python3 scripts/build_mayor_history.py"
   },
   "dependencies": {
+    "bootstrap": "^5.3.9",
     "vue": "^3.5.0"
   },
   "devDependencies": {

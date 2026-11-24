@@ -4,6 +4,7 @@
 資料：中文維基百科每個縣市的「XX縣縣長／XX市市長」條目，只取民選的那幾張表
 （「實施地方自治後」「公民直選」「民選縣長」「直轄市時期」等）；官派、院轄市時期（臺北 1967–1994、高雄 1979–1994）、
 代理、暫代不算進比例（編年表照樣列出，標 acting）。條目快取在 data/raw/wiki/（不進 git），重抓刪掉即可。
+讀表後會修正：維基已知筆誤（DATE_FIXES、WIKI_FIXES）、復職列的黨籍（沿用該屆當選時的）、民選與代理日期重疊（截斷民選卸任）、隔日空窗（卸任日寫成就職前一天）。
 
 計算：
 - 黨籍用當選時的（維基寫「無黨籍 → 中國國民黨」就算無黨籍）
@@ -77,6 +78,20 @@ PARTY_OF = {name: k for k, _, names in PARTIES for name in names}
 MERGED = ('臺中市', '臺南市', '高雄市')
 MERGE_DAY = date(2010, 12, 25)
 OLD_KEY = {c: f'{c}（合併前）' for c in MERGED}
+# 維基已知筆誤：(unit, name, 錯的 start, 錯的 end) → (對的 start, 對的 end)
+# 南投縣縣長表把劉裕猷第 8 屆寫成 1977-02-01；縣府／本人條目為 1977-12-20
+# 金門縣長表寫谷鵬 1980-08-14 到 1981-08-17「任內病逝」，但代理的倪慶裕 1980-08-17 就上任：病逝是 1980 年
+DATE_FIXES = {
+    ('南投縣', '劉裕猷', date(1977, 2, 1), date(1981, 12, 5)): (date(1977, 12, 20), date(1981, 12, 5)),
+    ('金門縣', '谷鵬', date(1980, 8, 14), date(1981, 8, 17)): (date(1980, 8, 14), date(1980, 8, 17)),
+}
+# 維基連結修正：(unit, name) → 條目名（None＝不連）
+# 花蓮第 2 任林茂盛（1907–1996）表裡沒連結，整頁的連結會抓到導覽框裡的現任宜蘭代理縣長林茂盛（1967–）
+# 嘉義縣代理縣長金輅（1955，省府委員）表裡沒連結，跟臺南縣代理的金輅是同一人
+WIKI_FIXES = {
+    ('花蓮縣', '林茂盛'): None,
+    ('嘉義縣', '金輅'): '金輅',
+}
 
 
 def fetch(page):
@@ -188,10 +203,52 @@ def terms(page, heads):
                 raise SystemExit(f'{page}：不認得的黨籍「{party}」')
             name = re.sub(r'（.*?）|\(.*?\)', '', r[ni]).strip()
             out.append({'name': name, 'party': PARTY_OF.get(party), 'partyName': r[pi] if pi is not None and r[pi] else '黨籍不詳', 'start': a, 'end': b, 'unit': UNIT.get(page, page[:3]),
-                        **({'acting': True} if acting else {}), **({'note': note} if note else {}), **({'wiki': links[name]} if name in links else {})})
+                        **({'acting': True} if acting else {}), **({'note': note} if note else {}), **({'wiki': links[name]} if name in links else {}),
+                        **({'by': True} if not acting and not note and any('補選' in c for c in r) else {}),  # 備註寫了補選
+                        # 任次加括號「（8）」＝同一屆停職後復職，不是新的選舉
+                        **({'resumed': True} if ki is not None and re.match(r'^[（(]\d+[）)]$', r[ki]) else {})})
     if not any(counted(t) for t in out):
         raise SystemExit(f'{page}：沒有讀到民選首長')
     return out
+
+
+# 修正維基筆誤、民選與代理重疊、隔日空窗（卸任日寫成就職前一天）
+def fix_terms(ts):
+    for t in ts:
+        key = (t['unit'], t['name'], t['start'], t['end'])
+        if key in DATE_FIXES:
+            t['start'], t['end'] = DATE_FIXES[key]
+        if (t['unit'], t['name']) in WIKI_FIXES:
+            t.pop('wiki', None)
+            if WIKI_FIXES[t['unit'], t['name']]:
+                t['wiki'] = WIKI_FIXES[t['unit'], t['name']]
+    # 復職：黨籍沿用這一屆當選時的（維基復職列寫的是復職時的黨籍，例如高虹安當選時民眾黨、復職時無黨籍）
+    for t in ts:
+        if t.pop('resumed', False):
+            prev = max((p for p in ts if p['unit'] == t['unit'] and p['name'] == t['name'] and counted(p) and p['start'] < t['start']), key=lambda p: p['start'])
+            t['party'] = prev['party']
+            elected_as = prev['partyName'].split('→')[0].strip()
+            if t['partyName'] != elected_as and not prev['partyName'].endswith(t['partyName']):
+                t['partyName'] = f"{elected_as} → {t['partyName']}"
+            else:
+                t['partyName'] = prev['partyName']
+    by_unit = {}
+    for t in ts:
+        by_unit.setdefault(t['unit'], []).append(t)
+    for group in by_unit.values():
+        elected = [t for t in group if not t.get('acting') and not t.get('note')]
+        acting = [t for t in group if t.get('acting')]
+        for e in elected:
+            for a in acting:
+                # 代理從民選任期中插入（停職、休職）：民選卸任截到代理就任日
+                if e['start'] < a['start'] < e['end']:
+                    e['end'] = a['start']
+        # 隔日交接（民選或代理）→ 延長前一任卸任日，讓 [start, end) 連續
+        ordered = sorted([t for t in group if t['start'] < t['end']], key=lambda t: (t['start'], t['end']))
+        for i in range(len(ordered) - 1):
+            if ordered[i]['end'] + timedelta(days=1) == ordered[i + 1]['start']:
+                ordered[i]['end'] = ordered[i + 1]['start']
+    return [t for t in ts if t['start'] < t['end']]
 
 
 # 一段期間裡各黨在任幾天：sides 是同一天要平均的幾邊（合併前的縣、市），每一邊是一串任期
@@ -221,11 +278,49 @@ def periods_of(sides):
 iso = lambda ts: [{**t, 'start': t['start'].isoformat(), 'end': t['end'].isoformat()} for t in sorted(ts, key=lambda t: t['start'])]
 
 
+# 補選：維基的表格多半沒寫，用就任日推——民選、就任日不是統一的就任日（那一天只有這一個縣市有民選首長就任）、
+# 前一位民選首長是別人（同一人＝停職後復職，不是補選），而且前一任沒做完（卸任到這一任就任隔超過 30 天，或前一任不到 1000 天；
+# 做完整任、只是那個縣就任日跟別人不同的不算）。第一任民選不算。推出來的名單會印出來，要人工看過
+# 人工查證後的更正（縣市, 姓名, 就任日）→ 'acting'＝其實是代理、'by'＝其實是補選：
+# - 林洋港 1967：縣長條目的備註寫「省府委員代理並於補選當選」，本人條目寫 1967-02-01 起代理、1968 年才參選第六屆 → 代理
+# - 賴順生 1951：第一屆當選的劉定國被判當選無效，7 月重新選出賴順生（本人條目寫「重新補選」）→ 補選
+FIX = {('南投縣', '林洋港', '1967-02-01'): 'acting', ('苗栗縣', '賴順生', '1951-08-15'): 'by'}
+
+
+def mark_by(units_all):
+    for ts in units_all:
+        for t in ts:
+            fix = FIX.get((t['unit'], t['name'], t['start'].isoformat()))
+            if fix == 'acting':
+                t['acting'] = True
+                t.pop('by', None)
+            elif fix == 'by':
+                t['by'] = True
+                print('補選', t['unit'], t['name'], t['start'], '（人工更正）')
+    seen = {}
+    for ts in units_all:
+        for t in ts:
+            if counted(t):
+                seen.setdefault(t['start'], set()).add(t['unit'])
+    for ts in units_all:
+        prev = None
+        for t in sorted(ts, key=lambda t: t['start']):
+            if not counted(t):
+                continue
+            if prev and prev['name'] != t['name'] and len(seen[t['start']]) < 2 and ((t['start'] - prev['end']).days > 30 or (prev['end'] - prev['start']).days < 1000):
+                t['by'] = True
+            if t.get('by'):
+                print('補選', t['unit'], t['name'], t['start'], '（前一任', prev and prev['name'], '）')
+            prev = t
+
+
 def main():
     counties, old = {}, {}
+    parsed = {county: [terms(p, h) for p, h in pages] for county, pages in COUNTIES.items()}
+    mark_by([u for units in parsed.values() for u in units])
     for county, pages in COUNTIES.items():
-        units = [terms(p, h) for p, h in pages]
-        allt = [t for u in units for t in u]
+        units = parsed[county]
+        allt = fix_terms([t for u in units for t in u])
         # 合併的縣市：同一天兩個條目（市、縣）的首長平均；升格前後（臺北縣→新北市）不會同一天都有，自然接起來
         # 先把條目依「合併前的哪一邊」分組：新北、桃園兩個條目是同一邊
         sides = {}
