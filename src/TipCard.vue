@@ -15,8 +15,7 @@
         <div class="tc-row tc-dim">在任 {{ tip.dur }}<template v-if="tip.terms > 1">・連任，共 {{ tip.terms }} 任</template></div>
       </template>
       <div v-if="tip.note" class="tc-row tc-dim">{{ tip.note }}</div>
-      <a v-if="tip.sheet || tip.pin" class="btn btn-sm btn-tb active tc-open" :href="tip.url" target="_blank" rel="noopener"><span class="material-symbols-outlined">open_in_new</span>開維基百科</a>
-      <div v-else class="tc-row tc-link">點一下固定這張卡片</div>
+      <a v-if="tip.sheet || tip.pin" class="btn btn-sm btn-tb active tc-open" :href="tip.url" target="_blank" rel="noopener"><span class="material-symbols-outlined">open_in_new</span>維基百科</a>
     </div>
     <button v-if="tip.sheet || tip.pin" type="button" class="btn btn-sm btn-tb tc-close" aria-label="關閉" @click="$emit('close')"><span class="material-symbols-outlined">close</span></button>
   </div>
@@ -38,12 +37,9 @@ defineEmits(['close'])
 .tc-life { margin: -2px 0 4px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .tc-date { margin-top: 4px; font-variant-numeric: tabular-nums; }
 .tc-dim { color: var(--dim); white-space: normal; }
-.tc-link { margin-top: 6px; gap: 3px; color: var(--accent); font-size: 11px; }
-.tc-link .material-symbols-outlined { font-size: 14px; }
 /* 點了固定住的卡（滑鼠）：可以點裡面的連結 */
 .tipcard.pin { pointer-events: auto; max-width: 340px; }
 .tipcard.pin .tc-open { --bs-btn-padding-y: 4px; --bs-btn-padding-x: 10px; --bs-btn-font-size: 12px; margin-top: 8px; }
-.tc-link { color: var(--dim); }
 /* 觸控：畫面下面的一張卡 */
 .tipcard.sheet { left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); width: auto; max-width: none; padding: 14px; font-size: 13px; pointer-events: auto; animation: up 0.18s ease-out; }
 .tipcard.sheet img { width: 84px; height: 112px; }
