@@ -2,33 +2,31 @@
   <!-- 編年表分頁：像試算表——上面一列（縣市）、左邊三欄（年份、總統、大事）凍結，其他照一般捲動；上面的工具列：顯示什麼、字級、縮放、操作模式 -->
   <div class="pane">
     <!-- 工具列（Bootstrap 元件、Material Symbols 圖示）：顯示什麼、字級、縮放、滾輪縮放模式／拖曳模式、回到預設 -->
-    <div class="toolbar">
-      <div class="ctl" role="toolbar" aria-label="工具列">
-        <ModeTabs />
-        <div class="tb-grp" role="group" aria-label="格子上顯示什麼">
-          <button v-for="[k, l] in SHOW" :key="k" type="button" class="btn btn-sm btn-tb" :class="{ active: show[k] }" :aria-pressed="show[k]" :title="`顯示${l}`" @click="show[k] = !show[k]">{{ l }}</button>
-        </div>
-        <div class="vr"></div>
-        <div class="tb-grp" role="group" aria-label="字級">
-          <button type="button" class="btn btn-sm btn-tb" title="字小一點" :disabled="fs <= FONTS[0]" @click="fontStep(-1)"><span class="material-symbols-outlined">text_decrease</span></button>
-          <button type="button" class="btn btn-sm btn-tb" title="字大一點" :disabled="fs >= FONTS.at(-1)" @click="fontStep(1)"><span class="material-symbols-outlined">text_increase</span></button>
-        </div>
-        <div class="vr"></div>
-        <div class="tb-grp" role="group" aria-label="縮放">
-          <button type="button" class="btn btn-sm btn-tb" title="縮小（-）" :disabled="zT <= MIN_Z" @click="zoomStep(-1)"><span class="material-symbols-outlined">zoom_out</span></button>
-          <input type="range" class="form-range" :min="-2" :max="2" step="0.01" :value="Math.log2(zT)" aria-label="縮放" @input="zoomTo(2 ** +$event.target.value)" />
-          <button type="button" class="btn btn-sm btn-tb" title="放大（+）" :disabled="zT >= MAX_Z" @click="zoomStep(1)"><span class="material-symbols-outlined">zoom_in</span></button>
-          <span class="pct">{{ Math.round(z * 100) }}%</span>
-        </div>
-        <div class="vr"></div>
-        <!-- 操作模式：二選一。捲動（預設）／滾輪縮放＋拖曳（一按就兩樣都有） -->
-        <div class="tb-grp" role="radiogroup" aria-label="操作模式">
-          <button v-for="[k, l, tip] in OPS" :key="k" type="button" role="radio" class="btn btn-sm btn-tb" :class="{ active: nav === k }" :aria-checked="nav === k" :title="tip" @click="setOp(k)">{{ l }}</button>
-        </div>
-        <div class="vr"></div>
-        <button type="button" class="btn btn-sm btn-tb" title="縮放 100%、字級、顯示項目、滾輪縮放模式、拖曳模式都回到預設（0）" :disabled="isDefault" @click="reset"><span class="material-symbols-outlined">restart_alt</span><span class="lbl">回到預設</span></button>
+    <ToolBar>
+      <ModeTabs />
+      <div class="tb-grp" role="group" aria-label="格子上顯示什麼">
+        <button v-for="[k, l] in SHOW" :key="k" type="button" class="btn btn-sm btn-tb" :class="{ active: show[k] }" :aria-pressed="show[k]" :title="`顯示${l}`" @click="show[k] = !show[k]">{{ l }}</button>
       </div>
-    </div>
+      <div class="vr"></div>
+      <div class="tb-grp" role="group" aria-label="字級">
+        <button type="button" class="btn btn-sm btn-tb" title="字小一點" :disabled="fs <= FONTS[0]" @click="fontStep(-1)"><span class="material-symbols-outlined">text_decrease</span></button>
+        <button type="button" class="btn btn-sm btn-tb" title="字大一點" :disabled="fs >= FONTS.at(-1)" @click="fontStep(1)"><span class="material-symbols-outlined">text_increase</span></button>
+      </div>
+      <div class="vr"></div>
+      <div class="tb-grp" role="group" aria-label="縮放">
+        <button type="button" class="btn btn-sm btn-tb" title="縮小（-）" :disabled="zT <= MIN_Z" @click="zoomStep(-1)"><span class="material-symbols-outlined">zoom_out</span></button>
+        <input type="range" class="form-range" :min="-2" :max="2" step="0.01" :value="Math.log2(zT)" aria-label="縮放" @input="zoomTo(2 ** +$event.target.value)" />
+        <button type="button" class="btn btn-sm btn-tb" title="放大（+）" :disabled="zT >= MAX_Z" @click="zoomStep(1)"><span class="material-symbols-outlined">zoom_in</span></button>
+        <span class="pct">{{ Math.round(z * 100) }}%</span>
+      </div>
+      <div class="vr"></div>
+      <!-- 操作模式：二選一。捲動（預設）／滾輪縮放＋拖曳（一按就兩樣都有） -->
+      <div class="tb-grp" role="radiogroup" aria-label="操作模式">
+        <button v-for="[k, l, tip] in OPS" :key="k" type="button" role="radio" class="btn btn-sm btn-tb" :class="{ active: nav === k }" :aria-checked="nav === k" :title="tip" @click="setOp(k)">{{ l }}</button>
+      </div>
+      <div class="vr"></div>
+      <button type="button" class="btn btn-sm btn-tb" title="縮放 100%、字級、顯示項目、滾輪縮放模式、拖曳模式都回到預設（0）" :disabled="isDefault" @click="reset"><span class="material-symbols-outlined">restart_alt</span><span class="lbl">回到預設</span></button>
+    </ToolBar>
 
     <div ref="scroller" class="scroller" :class="{ dragging, nav }" tabindex="0" :style="{ fontSize: `${11 * f}px` }"
       @wheel="onWheel" @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp" @mousemove="onHover" @mouseleave="tip?.sheet || (tip = null)" @scroll="tip = null">
@@ -48,22 +46,22 @@
         </div>
         <!-- 左邊凍結：年份、總統（顏色＝中央執政黨）、大事 -->
         <div class="axis">
-          <span v-for="y in ticks" :key="y" class="year" :title="y" :style="{ top: `${(y - Y0) * py}px`, width: `${YEAR_W * f}px` }">’{{ String(y).slice(2) }}</span>
-          <div v-for="(p, i) in pres" :key="p.name" class="blk" :aria-label="p.tip" :data-p="i" :data-url="wiki(p.name)" :style="{ left: `${YEAR_W * f + 2}px`, width: `${PRES_W * f - 4}px`, top: `${p.a * py}px`, height: `${p.h}px`, ...bg(COLOR[p.party], p.name) }">
-            <i v-for="c in p.cuts" :key="c" class="cut" :style="{ top: `${c * py}px` }"></i>
-            <span v-if="p.hf >= 11 && (show.name || show.time)" :style="{ top: `${headH}px` }"><template v-if="show.name"><b>{{ p.name }}</b><em v-if="!p.end" class="now">現任</em></template><template v-if="show.time"><small v-if="p.hf >= (show.name ? 27 : 14)">{{ ymd(p.start) }}</small><small v-if="p.hf >= (show.name ? 36 : 23)">{{ ymd(p.end ?? H.asOf, H.asOf) }}</small></template></span>
+          <span v-for="y in ticks" :key="y" class="year" :title="y" :style="{ top: `${yy(y - Y0) * py}px`, width: `${YEAR_W * f}px` }">’{{ String(y).slice(2) }}</span>
+          <div v-for="(p, i) in pres" :key="p.name" class="blk" :aria-label="p.tip" :data-p="i" :data-url="wiki(p.name)" :style="{ left: `${YEAR_W * f + 2}px`, width: `${PRES_W * f - 4}px`, top: `${top(p) * py}px`, height: `${p.h}px`, ...bg(COLOR[p.party], p.name) }">
+            <i v-for="c in p.cuts" :key="c" class="cut" :style="{ top: `${cut(p, c) * py}px` }"></i>
+            <span v-if="p.hf >= 11 && (show.name || show.time)" :style="{ top: `${headH}px` }"><template v-if="show.name"><b>{{ p.name }}</b><em v-if="!p.end" class="now">現任</em></template><template v-if="show.time"><small v-if="p.hf >= (show.name ? 27 : 14)">{{ dates(p)[0] }}</small><small v-if="p.hf >= (show.name ? 36 : 23)">{{ dates(p)[1] }}</small></template></span>
           </div>
           <!-- 大事：日期＋名稱；擠在一起的往下排開，引線指回實際的時間 -->
-          <svg v-if="EV_W" class="leads" :style="{ left: `${(YEAR_W + PRES_W) * f}px` }" width="12" height="1"><path v-for="e in events" :key="e.date + e.label" :d="`M1 ${e.y * py}L${9 * f} ${e.ly}`" /></svg>
+          <svg v-if="EV_W" class="leads" :style="{ left: `${(YEAR_W + PRES_W) * f}px` }" width="12" height="1"><path v-for="e in events" :key="e.date + e.label" :d="`M1 ${e.p}L${9 * f} ${e.ly}`" /></svg>
           <div v-for="e in (EV_W ? events : [])" :key="e.date + e.label" class="ev" :class="e.kind" :title="e.tip" :style="{ left: `${(YEAR_W + PRES_W) * f}px`, top: `${e.ly}px` }"><small>{{ ymd(e.date) }}</small>{{ e.label }}</div>
         </div>
         <!-- 格子：一格一人，點了開維基 -->
         <div class="body" :style="{ backgroundSize: `${px}px 100%` }">
-          <div v-for="y in ticks" :key="y" class="line" :style="{ top: `${(y - Y0) * py}px` }"></div>
+          <div v-for="y in ticks" :key="y" class="line" :style="{ top: `${yy(y - Y0) * py}px` }"></div>
           <div v-for="(b, i) in shown" :key="b.id" class="blk" :class="{ acting: b.t.acting, noted: b.t.note }" :aria-label="b.tip" :data-i="i" :data-url="b.url"
-            :style="{ left: `${b.col * px}px`, width: `${b.span * px - 2}px`, top: `${b.a * py}px`, height: `${b.h}px`, ...bg(b.color, b.t.wiki, b.t.note) }">
-            <i v-for="c in b.cuts" :key="c" class="cut" :style="{ top: `${c * py}px` }"></i>
-            <span v-if="b.hf >= 11 && (show.name || show.time)" :style="{ top: `${headH}px`, left: `${axisW}px` }"><template v-if="show.name"><b>{{ b.t.name }}</b><em v-for="g in b.tags" :key="g" :class="{ now: g === '現任' }">{{ g }}</em></template><template v-if="show.time"><small v-if="b.hf >= (show.name ? 27 : 14)">{{ ymd(b.t.start) }}</small><small v-if="b.hf >= (show.name ? 36 : 23)">{{ ymd(b.t.end, H.asOf) }}</small></template><small v-if="show.color && b.hf >= 58 && px / f >= 90">{{ b.t.partyName }}</small></span>
+            :style="{ left: `${b.col * px}px`, width: `${b.span * px - 2}px`, top: `${top(b) * py}px`, height: `${b.h}px`, ...bg(b.color, b.t.wiki, b.t.note) }">
+            <i v-for="c in b.cuts" :key="c" class="cut" :style="{ top: `${cut(b, c) * py}px` }"></i>
+            <span v-if="b.hf >= 11 && (show.name || show.time)" :style="{ top: `${headH}px`, left: `${axisW}px` }"><template v-if="show.name"><b>{{ b.t.name }}</b><em v-for="g in b.tags" :key="g" :class="{ now: g === '現任' }">{{ g }}</em></template><template v-if="show.time"><small v-if="b.hf >= (show.name ? 27 : 14)">{{ dates(b.t)[0] }}</small><small v-if="b.hf >= (show.name ? 36 : 23)">{{ dates(b.t)[1] }}</small></template><small v-if="show.color && b.hf >= 58 && px / f >= 90">{{ b.t.partyName }}</small></span>
           </div>
         </div>
       </div>
@@ -77,6 +75,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import TipCard from './TipCard.vue'
 import ModeTabs from './ModeTabs.vue'
+import ToolBar from './ToolBar.vue'
+import { rev } from './mode.js'
 import { plain } from './theme.js'
 import { COLOR, MERGED, MERGE_DAY, colorOf, yr, ymd } from './parties.js'
 import { EVS, H, PRES, RUNS, Y0, Y1, cutsOf, loadPhotos, photos, presTip, termTags, termTip, termUrl, tipPos, wiki } from './shared.js'
@@ -146,13 +146,20 @@ const ticks = computed(() => {
   return out
 })
 // 格子的高（hf＝換算回預設字級的高：放不放得下名字、日期）。名字四邊一律留 p-1（0.25rem）。名字 ≥ 11；加就任日 ≥ 27；再加卸任日 ≥ 36
+// 時間 → 位置：v＝離最早那一天幾年。遠到近（預設）照原樣；近到遠＝上下顛倒
+const SPAN = Y1 - Y0
+const yy = (v) => (rev.value ? SPAN - v : v)
+const top = (b) => (rev.value ? SPAN - b.b : b.a) // 一格的上緣
+const cut = (b, c) => (rev.value ? b.b - b.a - c : c) // 連任的虛線離上緣多遠
+// 格子裡的兩行日期：上面那一行是格子上緣的日期（遠到近＝就任、卸任；近到遠＝卸任、就任）
+const dates = (t) => { const d = [ymd(t.start), ymd(t.end ?? H.asOf, H.asOf)]; return rev.value ? d.reverse() : d }
 const sized = (b) => { const h = Math.max(1, (b.b - b.a) * py.value - 1); return { ...b, h, hf: h / f.value } }
 const shown = computed(() => blocks.map(sized))
 const pres = computed(() => PRES.map(sized))
 // 大事：照時間排，跟上一個不到一行就往下推
 const events = computed(() => {
   let prev = -99
-  return EVS.map((e) => ({ ...e, ly: (prev = Math.max(e.y * py.value, prev + 13 * f.value)) }))
+  return EVS.map((e) => ({ ...e, p: yy(e.y) * py.value })).sort((a, b) => a.p - b.p).map((e) => ({ ...e, ly: (prev = Math.max(e.p, prev + 13 * f.value)) }))
 })
 
 // 縮放時畫面上 (ax, ay)（捲動區裡的座標）那一點不動：記下它在表上的位置（100% 的座標），每一格照它算捲動位置
@@ -205,10 +212,11 @@ function setOp(k) {
   if (!raf) apply(z.value)
 }
 // 回到預設：100%、預設字級、三樣都顯示、滾輪縮放模式、拖曳模式關掉、捲回左上角
-const isDefault = computed(() => zT.value === 1 && fs.value === 1 && show.name && show.color && show.time && !show.photo && !wheel.value && !nav.value)
+const isDefault = computed(() => zT.value === 1 && fs.value === 1 && show.name && show.color && show.time && !show.photo && !wheel.value && !nav.value && !rev.value)
 function reset() {
   show.name = show.color = show.time = true
   show.photo = false
+  rev.value = false
   fs.value = 1
   wheel.value = nav.value = false
   zoomTo(1)

@@ -9,3 +9,7 @@ export function setMode(k) {
   history.replaceState(null, '', k === 'map' ? '#map' : location.pathname + location.search)
 }
 window.addEventListener('hashchange', () => (mode.value = fromHash()))
+
+// 時間的方向（編年表、地圖的時間軸共用）：false＝遠到近（最早的在上面，預設）、true＝近到遠（現在在上面）
+export const rev = ref(false)
+export const ORDERS = [[false, '遠到近', '時間由上往下：最早的在最上面（預設）'], [true, '近到遠', '時間由上往下：現在在最上面']]

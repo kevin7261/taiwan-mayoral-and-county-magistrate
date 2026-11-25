@@ -111,6 +111,10 @@ a { color: inherit; text-decoration: none; }
 .btn-tb { --bs-btn-border-radius: 999px; --bs-btn-border-width: 0; --bs-btn-color: var(--tb-text); --bs-btn-bg: transparent; --bs-btn-hover-color: var(--tb-text); --bs-btn-hover-bg: var(--tb-hover); --bs-btn-active-color: var(--tb-on-text); --bs-btn-active-bg: var(--tb-on); --bs-btn-disabled-bg: transparent; --bs-btn-disabled-color: var(--tb-off); font-weight: 500; transition: background-color 0.15s, color 0.15s; }
 .btn-tb.active:hover { background-color: var(--tb-on-hover); }
 .btn-tb:disabled { opacity: 1; }
+/* 只有一個圖示的按鈕（不在一組裡面的：更多、日夜切換…）＝正圓形 */
+.btn-tb.round, .ctl > .btn-tb:has(> .material-symbols-outlined:only-child), .bar .btn-tb:has(> .material-symbols-outlined:only-child) { width: 32px; height: 32px; min-height: 0; padding: 0; justify-content: center; border-radius: 50%; }
+/* 手機版面把字藏起來、只剩圖示的（回到預設）：也是圓的 */
+@media (max-width: 720px) { .ctl > .btn-tb:has(> .lbl) { width: 32px; height: 32px; min-height: 0; padding: 0; justify-content: center; border-radius: 50%; } }
 .btn:focus-visible { box-shadow: 0 0 0 3px var(--accent-soft); }
 .form-range { --bs-secondary-bg: var(--track); }
 .form-range:focus::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--accent-soft); }
@@ -122,7 +126,9 @@ a { color: inherit; text-decoration: none; }
 /* ── 工具列（編年表、地圖兩個分頁都有；Bootstrap 的 btn、vr、form-range）：一條薄的橫列，裡面一組一組按鈕用直線隔開 */
 .toolbar { flex: none; display: flex; align-items: center; padding: 4px 10px 8px; background: var(--chrome); border-bottom: 1px solid var(--line); font-size: 13px; }
 /* 像 Google 試算表／簡報的工具列：一條跟畫面一樣寬、兩頭圓的膠囊（pill），裡面的按鈕也是膠囊 */
-.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; width: 100%; min-height: 38px; padding: 4px 8px; border-radius: 999px; background: var(--tb-bg); }
+/* 永遠一行、不換行（換成兩行膠囊的形狀會壞掉）；放不下的那幾組收進最右邊的「更多」選單（src/ToolBar.vue） */
+.ctl { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; width: 100%; height: 40px; padding: 4px 8px; border-radius: 999px; background: var(--tb-bg); overflow: hidden; }
+.ctl > * { flex: none; }
 /* 同一組按鈕畫成一組（group button，像 Google 的分段按鈕）：外面一圈膠囊形的框，裡面的按鈕接在一起、中間用細線隔開，
    只有頭尾兩顆是圓的 */
 .tb-grp { display: flex; align-items: stretch; gap: 0; border: 1px solid var(--tb-line); border-radius: 999px; overflow: hidden; }
@@ -132,13 +138,9 @@ a { color: inherit; text-decoration: none; }
 .ctl .vr { display: none; } /* 一組一組已經有框，中間不用再畫直線 */
 .ctl .form-range { width: 96px; margin: 0 4px; }
 .pct { min-width: 40px; padding-right: 4px; color: var(--tb-text); text-align: right; font-variant-numeric: tabular-nums; }
-/* 手機版面：有圖示的按鈕只留圖示；工具列不換行，放不下用滑的 */
+/* 手機版面：有圖示的按鈕只留圖示 */
 @media (max-width: 720px) {
   .lbl { display: none; }
-  .toolbar { overflow-x: auto; scrollbar-width: none; }
-  .toolbar::-webkit-scrollbar { display: none; }
-  .ctl { flex-wrap: nowrap; width: max-content; min-width: 100%; }
-  .ctl > * { flex: none; }
   .ctl .form-range { width: 72px; }
 }
 
@@ -175,9 +177,7 @@ a { color: inherit; text-decoration: none; }
   .btn-tb:hover:not(:disabled):not(.active) { background-color: transparent; }
   .blk:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
 }
-/* 手機版面：按鈕加高（手指點得到，至少 36px）、工具列貼邊可以橫滑 */
+/* 手機版面：工具列跟桌機一樣高（不另外加高按鈕，不然工具列會變高）；左右留白小一點 */
 @media (max-width: 720px) {
-  .toolbar { padding: 4px 8px; }
-  .btn-tb { --bs-btn-padding-y: 8px; --bs-btn-padding-x: 11px; --bs-btn-font-size: 13px; }
-  .ctl .form-range { height: 36px; }
+  .toolbar { padding-left: 8px; padding-right: 8px; }
 }

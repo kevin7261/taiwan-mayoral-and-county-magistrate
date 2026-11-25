@@ -1,22 +1,20 @@
 <template>
   <!-- 地圖分頁：左邊是跟編年表一樣的時間軸（年份、總統、大事），在上面點、拖選一天；右邊的臺灣地圖畫那一天各縣市的首長（顏色＝黨籍） -->
   <div class="pane">
-    <div class="toolbar">
-      <div class="ctl" role="toolbar" aria-label="工具列">
-        <ModeTabs />
-        <div class="tb-grp" role="group" aria-label="時間">
-          <button type="button" class="btn btn-sm btn-tb" title="上一次首長變動（←）" :disabled="!prevDay" @click="go(prevDay)"><span class="material-symbols-outlined">skip_previous</span></button>
-          <button type="button" class="btn btn-sm btn-tb" :class="{ active: playing }" :aria-pressed="playing" title="播放／暫停（空白鍵）" @click="toggle"><span class="material-symbols-outlined">{{ playing ? 'pause' : 'play_arrow' }}</span><span class="lbl">{{ playing ? '暫停' : '播放' }}</span></button>
-          <button type="button" class="btn btn-sm btn-tb" title="下一次首長變動（→）" :disabled="!nextDay" @click="go(nextDay)"><span class="material-symbols-outlined">skip_next</span></button>
-          <span class="day">{{ ymd(date) }}</span>
-          <button type="button" class="btn btn-sm btn-tb" title="回到現在（資料截止日）" :disabled="date === H.asOf && !playing" @click="go(H.asOf)"><span class="material-symbols-outlined">restart_alt</span><span class="lbl">回到現在</span></button>
-        </div>
-        <div class="vr"></div>
-        <div class="tb-grp" role="group" aria-label="地圖上顯示什麼">
-          <button v-for="[k, l] in SHOW" :key="k" type="button" class="btn btn-sm btn-tb" :class="{ active: show[k] }" :aria-pressed="show[k]" :title="`顯示${l}`" @click="show[k] = !show[k]">{{ l }}</button>
-        </div>
+    <ToolBar>
+      <ModeTabs />
+      <div class="tb-grp" role="group" aria-label="時間">
+        <button type="button" class="btn btn-sm btn-tb" title="上一次首長變動（←）" :disabled="!prevDay" @click="go(prevDay)"><span class="material-symbols-outlined">skip_previous</span></button>
+        <button type="button" class="btn btn-sm btn-tb" :class="{ active: playing }" :aria-pressed="playing" title="播放／暫停（空白鍵）" @click="toggle"><span class="material-symbols-outlined">{{ playing ? 'pause' : 'play_arrow' }}</span><span class="lbl">{{ playing ? '暫停' : '播放' }}</span></button>
+        <button type="button" class="btn btn-sm btn-tb" title="下一次首長變動（→）" :disabled="!nextDay" @click="go(nextDay)"><span class="material-symbols-outlined">skip_next</span></button>
+        <span class="day">{{ ymd(date) }}</span>
+        <button type="button" class="btn btn-sm btn-tb" title="回到現在（資料截止日）" :disabled="date === H.asOf && !playing" @click="go(H.asOf)"><span class="material-symbols-outlined">restart_alt</span><span class="lbl">回到現在</span></button>
       </div>
-    </div>
+      <div class="vr"></div>
+      <div class="tb-grp" role="group" aria-label="地圖上顯示什麼">
+        <button v-for="[k, l] in SHOW" :key="k" type="button" class="btn btn-sm btn-tb" :class="{ active: show[k] }" :aria-pressed="show[k]" :title="`顯示${l}`" @click="show[k] = !show[k]">{{ l }}</button>
+      </div>
+    </ToolBar>
 
     <div ref="split" class="split">
       <!-- 左：時間軸（跟編年表左邊凍結的三欄一樣），整段剛好一頁高；點、拖＝選日期 -->
@@ -27,15 +25,15 @@
           <div v-if="EV_W" class="head" :style="{ left: `${YEAR_W + PRES_W}px`, width: `${EV_W}px` }"><b>大事</b></div>
         </div>
         <div ref="tbody" class="tbody" @pointerdown="onScrub" @pointermove="onScrub" @pointerup="endScrub" @pointercancel="endScrub" @mousemove="onPresHover" @mouseleave="tip?.sheet || (tip = null)">
-          <span v-for="y in ticks" :key="y" class="year" :title="y" :style="{ top: `${(y - Y0) * py}px`, width: `${YEAR_W}px` }">’{{ String(y).slice(2) }}</span>
-          <div v-for="(p, i) in pres" :key="p.name" class="blk" :aria-label="p.tip" :data-p="i" :style="{ left: `${YEAR_W + 2}px`, width: `${PRES_W - 4}px`, top: `${p.a * py}px`, height: `${p.h}px`, backgroundColor: COLOR[p.party] }">
-            <i v-for="c in p.cuts" :key="c" class="cut" :style="{ top: `${c * py}px` }"></i>
-            <span v-if="p.h >= 11"><b>{{ p.name }}</b><em v-if="!p.end" class="now">現任</em><small v-if="p.h >= 27">{{ ymd(p.start) }}</small><small v-if="p.h >= 36">{{ ymd(p.end ?? H.asOf, H.asOf) }}</small></span>
+          <span v-for="y in ticks" :key="y" class="year" :title="y" :style="{ top: `${yy(y - Y0) * py}px`, width: `${YEAR_W}px` }">’{{ String(y).slice(2) }}</span>
+          <div v-for="(p, i) in pres" :key="p.name" class="blk" :aria-label="p.tip" :data-p="i" :style="{ left: `${YEAR_W + 2}px`, width: `${PRES_W - 4}px`, top: `${top(p) * py}px`, height: `${p.h}px`, backgroundColor: COLOR[p.party] }">
+            <i v-for="c in p.cuts" :key="c" class="cut" :style="{ top: `${cut(p, c) * py}px` }"></i>
+            <span v-if="p.h >= 11"><b>{{ p.name }}</b><em v-if="!p.end" class="now">現任</em><small v-if="p.h >= 27">{{ dates(p)[0] }}</small><small v-if="p.h >= 36">{{ dates(p)[1] }}</small></span>
           </div>
-          <svg v-if="EV_W" class="leads" :style="{ left: `${YEAR_W + PRES_W}px` }" width="12" height="1"><path v-for="e in events" :key="e.date + e.label" :d="`M1 ${e.y * py}L9 ${e.ly}`" /></svg>
+          <svg v-if="EV_W" class="leads" :style="{ left: `${YEAR_W + PRES_W}px` }" width="12" height="1"><path v-for="e in events" :key="e.date + e.label" :d="`M1 ${e.p}L9 ${e.ly}`" /></svg>
           <div v-for="e in (EV_W ? events : [])" :key="e.date + e.label" class="ev" :class="[e.kind, { past: e.date > date }]" :title="e.tip" :style="{ left: `${YEAR_W + PRES_W}px`, top: `${e.ly}px` }"><small>{{ ymd(e.date) }}</small>{{ e.label }}</div>
           <!-- 選到的那一天 -->
-          <div class="phead" :class="{ low: (tv - Y0) * py > size.th - 12, high: (tv - Y0) * py < 12 }" :style="{ top: `${Math.min(size.th - 1, (tv - Y0) * py)}px` }"><span>{{ ymd(date) }}</span></div>
+          <div class="phead" :class="{ low: headY > size.th - 12, high: headY < 12 }" :style="{ top: `${Math.min(size.th - 1, headY)}px` }"><span>{{ ymd(date) }}</span></div>
         </div>
       </div>
 
@@ -83,15 +81,17 @@
             <path v-if="hot.run?.note" :d="hot.d" fill="url(#hatch)" filter="url(#gap)" />
           </g>
           <!-- 字畫在所有縣市上面 -->
-          <g v-for="s in shapes" :key="s.key" class="label">
+          <!-- 字（和照片）：位置是 labels 排過的，互相不會蓋到；被推離原位比較遠的畫一條細線指回去 -->
+          <g v-for="s in labels" :key="s.key" class="label">
+            <line v-if="s.far" class="lead" :x1="s.x" :y1="s.ay" :x2="s.lx" :y2="s.cy" />
             <!-- 照片（開了「照片」、而且這位首長的維基條目有主圖）：一個圓形的頭像，放在字的上面，外圈是黨色 -->
-            <g v-if="show.photo && !s.sub && s.run && photos[s.run.wiki]" class="face">
-              <circle :cx="s.x" :cy="faceY(s)" :r="FACE / 2 + 1.5" :fill="s.ring" />
-              <image :href="photos[s.run.wiki]" :x="s.x - FACE / 2" :y="faceY(s) - FACE / 2" :width="FACE" :height="FACE" preserveAspectRatio="xMidYMin slice" />
+            <g v-if="s.face" class="face">
+              <circle :cx="s.lx" :cy="s.fy" :r="FACE / 2 + 1.5" :fill="s.ring" />
+              <image :href="photos[s.run.wiki]" :x="s.lx - FACE / 2" :y="s.fy - FACE / 2" :width="FACE" :height="FACE" preserveAspectRatio="xMidYMin slice" />
             </g>
-            <text v-if="!s.sub && (unitOn || show.name)" :x="s.x" :y="s.y">
-              <tspan v-if="unitOn" class="unit" :x="s.x">{{ s.unit }}</tspan>
-              <tspan v-if="show.name && s.run" class="name" :x="s.x" :dy="unitOn ? '1.15em' : 0">{{ s.run.name }}<tspan v-if="s.tag" class="tag" dx="2">{{ s.tag }}</tspan></tspan>
+            <text v-if="unitOn || show.name" :x="s.lx" :y="s.ly">
+              <tspan v-if="unitOn" class="unit" :x="s.lx">{{ s.unit }}</tspan>
+              <tspan v-if="show.name && s.run" class="name" :x="s.lx" :dy="unitOn ? '1.15em' : 0">{{ s.run.name }}<tspan v-if="s.tag" class="tag" dx="2">{{ s.tag }}</tspan></tspan>
             </text>
           </g>
         </svg>
@@ -130,6 +130,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { geoMercator, geoPath } from 'd3-geo'
 import TipCard from './TipCard.vue'
 import ModeTabs from './ModeTabs.vue'
+import ToolBar from './ToolBar.vue'
+import { rev } from './mode.js'
 import { plain, vacant } from './theme.js'
 import NOW from './data/county-now.json'
 import OLD from './data/county-2010.json'
@@ -178,7 +180,6 @@ const HIST_W = 264 // 右邊「歷任首長」那一欄的寬
 const wide = computed(() => size.w >= 620 && !tiny.value) // 畫面夠寬才有那一欄
 // 頭像的直徑、圓心的位置（字的上面；沒有字就放在原本字的位置）
 const FACE = computed(() => (tiny.value ? 16 : compact.value ? 22 : 30))
-const faceY = (s) => s.y - (unitOn.value || show.name ? (unitOn.value ? 12 : 13) + FACE.value / 2 : 4)
 const unitOn = computed(() => show.unit && !(tiny.value && show.name))
 const PRES_W = computed(() => (compact.value ? 48 : 60)), EV_W = computed(() => (compact.value ? 0 : 138))
 const AXIS = computed(() => YEAR_W + PRES_W.value + EV_W.value)
@@ -189,10 +190,18 @@ const ticks = computed(() => {
   for (let v = Math.ceil(Y0 / step) * step; v <= Y1; v += step) out.push(v)
   return out
 })
+// 時間 → 位置：v＝離最早那一天幾年。遠到近（預設）照原樣；近到遠＝上下顛倒
+const SPAN = Y1 - Y0
+const yy = (v) => (rev.value ? SPAN - v : v)
+const top = (b) => (rev.value ? SPAN - b.b : b.a) // 一格的上緣
+const cut = (b, c) => (rev.value ? b.b - b.a - c : c) // 連任的虛線離上緣多遠
+// 格子裡的兩行日期：上面那一行是格子上緣的日期（遠到近＝就任、卸任；近到遠＝卸任、就任）
+const dates = (t) => { const d = [ymd(t.start), ymd(t.end ?? H.asOf, H.asOf)]; return rev.value ? d.reverse() : d }
+const headY = computed(() => yy(tv.value - Y0) * py.value) // 選到的那一天在時間軸上的位置
 const pres = computed(() => PRES.map((p) => ({ ...p, h: Math.max(1, (p.b - p.a) * py.value - 1) })))
 const events = computed(() => {
   let prev = -99
-  return EVS.map((e) => ({ ...e, ly: (prev = Math.max(e.y * py.value, prev + 13)) }))
+  return EVS.map((e) => ({ ...e, p: yy(e.y) * py.value })).sort((a, b) => a.p - b.p).map((e) => ({ ...e, ly: (prev = Math.max(e.p, prev + 13)) }))
 })
 const president = computed(() => PRES.find((p) => p.start <= date.value && (date.value < (p.end ?? '9999') )))
 // 在時間軸上點、拖＝選那一天
@@ -207,7 +216,7 @@ function onScrub(e) {
   }
   if (!scrubbing.value) return
   const y = e.clientY - tbody.value.getBoundingClientRect().top
-  tv.value = Math.min(Y1, Math.max(Y0, Y0 + y / py.value))
+  tv.value = Math.min(Y1, Math.max(Y0, Y0 + yy(y / py.value)))
 }
 const endScrub = () => (scrubbing.value = false)
 
@@ -271,7 +280,7 @@ const layout = computed(() => {
     // 字放在最大那一塊裡離邊界最遠的點（離島的小框：框的下緣）
     const big = s.geometry.coordinates.map((c) => ({ type: 'Polygon', coordinates: c })).reduce((a, b) => (path.area(b) > path.area(a) ? b : a))
     const pr = proj[s.group], [cx, cy] = (box ? null : inner(big.coordinates.map((r) => r.map((q) => pr(q))))) ?? path.centroid(big), [dx, dy] = NUDGE[s.key] ?? [0, 0]
-    return { ...s, d: path({ type: 'Feature', geometry: s.geometry }), x: box ? box.x + box.w / 2 : cx + dx * k, y: box ? box.y + box.h - (unitOn.value && show.name ? 17 : 8) : cy + dy * k - (unitOn.value && show.name ? 3 : -4) }
+    return { ...s, d: path({ type: 'Feature', geometry: s.geometry }), x: box ? box.x + box.w / 2 : cx + dx * k, y: box ? box.y + box.h - (unitOn.value && show.name ? 17 : 8) : cy + dy * k - (unitOn.value && show.name ? 3 : -4), cy: cy + dy * k }
   })
   return { boxes, now: build(GEO.now), old: build(GEO.old) }
 })
@@ -287,6 +296,36 @@ const shapes = computed(() => {
     const run = sub ? runAt(`${s.county.slice(0, 2)}縣`, d) : runAt(s.county, d, s.unit)
     const c = run ? (show.color ? colorOf(run) : plain()) : vacant() // 不顯示政黨色＝灰；沒有首長（出缺、維基沒資料）＝底色（theme.js）
     return { ...s, sub, run, fill: run?.acting ? dim(c) : c, unit: run?.unit ?? s.name, tag: run ? termTags(run).filter((g) => g !== '現任').join('・') : '', ring: run ? colorOf(run) : VACANT }
+  })
+})
+// 字（和照片）排位置：每個縣市的字佔一個方框（照片在上、縣市名、首長名），從原本的位置（縣市裡面）出發，
+// 兩個方框疊到就互相推開（往疊得比較少的那個方向各退一半），同時有一點拉回原位的力；跑兩百多輪（最後幾十輪不再拉回去，只推開）就不會互相蓋到。
+// 外島小框裡的不動。
+const labels = computed(() => {
+  const F = FACE.value, name = show.name, unit = unitOn.value, fs = tiny.value ? 9 : compact.value ? 10 : 12
+  const list = shapes.value.filter((s) => !s.sub).map((s) => {
+    const face = !!(show.photo && s.run && photos[s.run.wiki])
+    const tw = Math.max(unit ? s.unit.length * fs * 0.86 : 0, name && s.run ? s.run.name.length * fs * 1.04 + (s.tag ? s.tag.length * fs * 0.78 + 4 : 0) : 0)
+    const th = (unit ? fs * 0.95 : 0) + (name && s.run ? fs * 1.2 : 0), fh = face ? F + 5 : 0
+    // 方框：中心 (x, y)、半寬 hw、半高 hh。整個方框（照片＋字）的中心對在縣市裡面最空的那一點（s.x, s.cy）；
+    // 外島小框裡的：字貼著框的下緣，照片往上疊
+    const y0 = s.group === 'main' ? s.cy : s.y - fs * 0.85 - fh + (fh + th) / 2
+    return { s, face, fh, th, hw: Math.max(tw, face ? F + 4 : 0) / 2 + 3, hh: (fh + th) / 2 + 2, x: s.x, y: y0, x0: s.x, y0, fixed: s.group !== 'main' }
+  })
+  for (let it = 0; it < 240; it++) {
+    for (let a = 0; a < list.length; a++) for (let b = a + 1; b < list.length; b++) {
+      const A = list[a], B = list[b]
+      if (A.fixed && B.fixed) continue
+      const ox = A.hw + B.hw - Math.abs(A.x - B.x), oy = A.hh + B.hh - Math.abs(A.y - B.y)
+      if (ox <= 0 || oy <= 0) continue
+      const wa = A.fixed ? 0 : B.fixed ? 1 : 0.5, wb = 1 - wa
+      if (ox < oy) { const d = A.x <= B.x ? -ox : ox; A.x += d * wa; B.x -= d * wb } else { const d = A.y <= B.y ? -oy : oy; A.y += d * wa; B.y -= d * wb }
+    }
+    for (const L of list) if (!L.fixed) { const k = it < 200 ? 0.03 : 0; L.x += (L.x0 - L.x) * k; L.y += (L.y0 - L.y) * k; L.x = Math.min(size.w - L.hw - 2, Math.max(L.hw + 2, L.x)); L.y = Math.min(size.h - L.hh - 2, Math.max(L.hh + 2, L.y)) }
+  }
+  return list.map((L) => {
+    const top = L.y - (L.fh + L.th) / 2
+    return { ...L.s, face: L.face, lx: L.x, ly: top + L.fh + fs * 0.85, fy: top + F / 2 + 1, cy: L.y, ay: L.y0, far: Math.hypot(L.x - L.x0, L.y - L.y0) > 16 }
   })
 })
 // 各黨那一天有幾個縣市（代理、官派也算在那個人的黨）
@@ -393,6 +432,7 @@ onBeforeUnmount(() => {
 @keyframes lift { from { transform: scale(1); filter: brightness(1) drop-shadow(0 0 0 rgba(0, 0, 0, 0)); } }
 @media (hover: none) { .lift { display: none; } }
 .label { pointer-events: none; }
+.label .lead { stroke: rgba(255, 255, 255, 0.55); stroke-width: 1; }
 .face image { clip-path: circle(50%); }
 .face circle { stroke: rgba(14, 14, 15, 0.85); stroke-width: 1; }
 .face { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5)); }
