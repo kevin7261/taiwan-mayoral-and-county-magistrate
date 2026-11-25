@@ -16,7 +16,7 @@
 期間：全部（第一屆起）、1990 年後、1996 年後、1981–1990、1991–2000、2001–2010、2011–2026（只算期間內的天數）
 
 輸出 src/data/mayor-history.json：{ asOf, periods: { 期間: [起, 迄) }, parties, counties: { 縣市: { from, periods: { 期間: { days, share: {黨: 比例} } }, terms: [...] } },
-  people: { 維基條目名（沒有條目的用姓名）: { born?, died? }（YYYY-MM-DD，只知道年的寫 YYYY） },
+  people: { 維基條目名（沒有條目的用姓名）: { born?, died?（YYYY-MM-DD，只知道年的寫 YYYY）, photo?（條目主圖的縮圖網址） } },
   old: { 合併前的舊縣、舊市（臺中縣、臺中市（合併前）…）: 同上，只算自己那一邊 } }
 """
 import json, re, subprocess, time, urllib.parse, urllib.request
@@ -167,8 +167,39 @@ PRESIDENTS = ['蔣中正', '嚴家淦', '蔣經國', '李登輝', '陳水扁', '
 def api(host, **q):
     # 用 curl：這台的 Python 沒有根憑證，urllib 連 https 會驗證失敗
     url = f'https://{host}/w/api.php?' + urllib.parse.urlencode({**q, 'format': 'json', 'formatversion': 2})
-    time.sleep(1)
-    return json.loads(subprocess.run(['curl', '-sS', '--fail', '--max-time', '120', '-A', UA, url], capture_output=True, text=True, check=True).stdout)
+    for n in range(6):  # 被限速（回來的不是 JSON、沒有 query）就等久一點再試
+        time.sleep(1 + n * 5)
+        out = subprocess.run(['curl', '-sS', '--max-time', '120', '-A', UA, url], capture_output=True, text=True).stdout
+        try:
+            r = json.loads(out)
+            if 'error' not in r:
+                return r
+        except ValueError:
+            pass
+    raise SystemExit(f'{host} API 一直失敗：{q.get("prop") or q.get("action")}')
+
+
+# 照片：維基百科每個條目的「主圖」（pageimages，只拿自由授權的；合理使用的圖不能拿到別的網站用）的縮圖網址。
+# 在這裡先查好、存進資料檔，網頁就不用每次打開都去問維基百科（原本是網頁自己問：被限速時一整批 50 個人的照片都會不見，
+# 看起來就是「維基明明有照片卻沒出現」）。結果：{ 條目名: 縮圖網址 }，快取在 data/raw/photos.json（重抓刪掉即可）
+def photos(titles):
+    f = RAW.parent / 'photos.json'
+    if f.exists():
+        return json.loads(f.read_text())
+    got = {}
+    for i in range(0, len(titles), 50):
+        part = titles[i:i + 50]
+        d = api('zh.wikipedia.org', action='query', prop='pageimages', piprop='thumbnail', pithumbsize=240, pilimit=50, redirects=1, titles='|'.join(part))['query']
+        to = {m['from']: m['to'] for m in d.get('normalized', []) + d.get('redirects', [])}
+        src = {pg['title']: pg['thumbnail']['source'] for pg in d.get('pages', []) if pg.get('thumbnail')}
+        for t in part:
+            k = t
+            for _ in range(4):
+                k = to.get(k, k)
+            if k in src:
+                got[t] = src[k]
+    f.write_text(json.dumps(got, ensure_ascii=False, indent=0))
+    return got
 
 
 # 生卒日期：條目 → 維基數據的出生日（P569）、逝世日（P570）；只知道年的就只寫年。查不到的用表格名字旁的年份。
@@ -395,6 +426,10 @@ def main():
                 old[OLD_KEY.get(side, side)] = {'from': first(ts), 'periods': periods_of([ts]), 'terms': iso(ts)}
     who = people(sorted({t['wiki'] for c in counties.values() for t in c['terms'] if t.get('wiki')} | set(PRESIDENTS)))
     print('生卒日期', len(who), '人')
+    extra = photos(sorted({t['wiki'] for c in counties.values() for t in c['terms'] if t.get('wiki')} | set(PRESIDENTS)))
+    for t, fn in extra.items():
+        who.setdefault(t, {})['photo'] = fn
+    print('照片', len(extra), '人')
     out = {'asOf': AS_OF.isoformat(), 'periods': {k: [a and a.isoformat(), b.isoformat()] for k, (a, b) in PERIODS.items()}, 'parties': [{'key': k, 'label': l, 'names': n} for k, l, n in PARTIES], 'counties': counties, 'old': old, 'people': who}
     (ROOT / 'src/data/mayor-history.json').write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')))
 

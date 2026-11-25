@@ -1,5 +1,4 @@
 // 編年表、地圖兩個分頁共用的：資料、每個縣市的任期（連任合成一段）、總統、大事、照片、資訊卡的內容
-import { reactive } from 'vue'
 import H from './data/mayor-history.json'
 import { EVENTS, PARTY_SHORT, PRESIDENTS } from './central.js'
 import { COLOR, colorOf, sameRun, tagsOf, yr, ymd } from './parties.js'
@@ -49,30 +48,10 @@ export const PRES = PRESIDENTS.map((p) => {
 // 大事（照時間排）
 export const EVS = EVENTS.map((e) => ({ ...e, y: yr(e.date) - Y0, tip: `${ymd(e.date)}　${e.label}${e.note ? `：${e.note}` : ''}` })).filter((e) => e.y > 0 && e.y < Y1 - Y0).sort((a, b) => a.y - b.y)
 
-// ── 照片：維基百科條目的主圖（pageimages，只有自由授權的圖），第一次用到時一次問完（一次最多 50 個條目）；沒有條目、沒有圖的就不放
-export const photos = reactive({})
-let asked = false
-export async function loadPhotos() {
-  if (asked) return
-  asked = true
-  const titles = [...new Set([...Object.values(RUNS).flatMap((r) => r.map((t) => t.wiki)).filter(Boolean), ...PRES.map((p) => p.name)])]
-  for (let i = 0; i < titles.length; i += 50) {
-    const part = titles.slice(i, i + 50)
-    try {
-      const q = new URLSearchParams({ action: 'query', prop: 'pageimages', piprop: 'thumbnail', pithumbsize: '240', pilimit: '50', redirects: '1', titles: part.join('|'), format: 'json', formatversion: '2', origin: '*' })
-      const d = (await (await fetch(`https://zh.wikipedia.org/w/api.php?${q}`)).json()).query ?? {}
-      // 條目名被正規化、重新導向時，回來的名字跟問的不一樣：一路對回去
-      const to = {}
-      for (const m of [...(d.normalized ?? []), ...(d.redirects ?? [])]) to[m.from] = m.to
-      const src = Object.fromEntries((d.pages ?? []).map((pg) => [pg.title, pg.thumbnail?.source]))
-      for (const t of part) {
-        let k = t
-        for (let n = 0; n < 4 && to[k]; n++) k = to[k]
-        if (src[k]) photos[t] = src[k]
-      }
-    } catch { /* 沒網路、被擋：就不放照片 */ }
-  }
-}
+// ── 照片：維基百科條目主圖的縮圖網址，建資料的時候就查好存在 H.people[條目名].photo（scripts/build_mayor_history.py）；
+// 沒有條目、條目沒有自由授權主圖的就沒有照片
+export const photos = Object.fromEntries(Object.entries(H.people ?? {}).filter(([, w]) => w.photo).map(([t, w]) => [t, w.photo]))
+export const loadPhotos = () => {} // 以前是網頁打開後才去問維基百科；現在資料裡就有，留著這個名字給兩個分頁呼叫
 
 // ── 資訊卡的內容
 // 在任多久：幾年幾個月
