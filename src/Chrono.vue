@@ -76,7 +76,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'v
 import TipCard from './TipCard.vue'
 import ModeTabs from './ModeTabs.vue'
 import ToolBar from './ToolBar.vue'
-import { rev } from './mode.js'
+import { REV_DEFAULT, rev } from './mode.js'
 import { plain } from './theme.js'
 import { COLOR, MERGED, MERGE_DAY, colorOf, yr, ymd } from './parties.js'
 import { EVS, H, PRES, RUNS, Y0, Y1, cutsOf, loadPhotos, photos, presTip, termTags, termTip, termUrl, tipPos, wiki } from './shared.js'
@@ -146,7 +146,7 @@ const ticks = computed(() => {
   return out
 })
 // 格子的高（hf＝換算回預設字級的高：放不放得下名字、日期）。名字四邊一律留 p-1（0.25rem）。名字 ≥ 11；加就任日 ≥ 27；再加卸任日 ≥ 36
-// 時間 → 位置：v＝離最早那一天幾年。遠到近（預設）照原樣；近到遠＝上下顛倒
+// 時間 → 位置：v＝離最早那一天幾年。遠到近照原樣；近到遠（預設）＝上下顛倒
 const SPAN = Y1 - Y0
 const yy = (v) => (rev.value ? SPAN - v : v)
 const top = (b) => (rev.value ? SPAN - b.b : b.a) // 一格的上緣
@@ -212,11 +212,11 @@ function setOp(k) {
   if (!raf) apply(z.value)
 }
 // 回到預設：100%、預設字級、三樣都顯示、滾輪縮放模式、拖曳模式關掉、捲回左上角
-const isDefault = computed(() => zT.value === 1 && fs.value === 1 && show.name && show.color && show.time && !show.photo && !wheel.value && !nav.value && !rev.value)
+const isDefault = computed(() => zT.value === 1 && fs.value === 1 && show.name && show.color && show.time && !show.photo && !wheel.value && !nav.value && rev.value === REV_DEFAULT)
 function reset() {
   show.name = show.color = show.time = true
   show.photo = false
-  rev.value = false
+  rev.value = REV_DEFAULT
   fs.value = 1
   wheel.value = nav.value = false
   zoomTo(1)

@@ -96,7 +96,7 @@
           </g>
         </svg>
         <!-- 左上角：那一天的日期、總統、各黨幾個縣市 -->
-        <div class="sum kcard">
+        <div ref="sumEl" class="sum kcard">
           <div class="kcard-head"><b class="kcard-title">{{ ymd(date) }}</b><span v-if="president" class="kcard-sub"><i class="dot" :style="{ background: COLOR[president.party] }"></i>總統 {{ president.name }}</span></div>
           <div class="sum-tally">
             <span v-for="p in tally" :key="p.key"><i class="dot" :style="{ background: p.color }"></i>{{ p.label }} <b>{{ p.n }}</b></span>
@@ -172,8 +172,8 @@ function toggle() {
 }
 
 // ── 左邊的時間軸
-const split = ref(null), tbody = ref(null), mapEl = ref(null)
-const size = reactive({ w: 800, h: 600, page: 1200, th: 600 }) // 地圖的寬高、整頁的寬、時間軸的高
+const split = ref(null), tbody = ref(null), mapEl = ref(null), sumEl = ref(null)
+const size = reactive({ w: 800, h: 600, page: 1200, th: 600, sw: 240, sh: 96 }) // 地圖的寬高、整頁的寬、時間軸的高、左上角摘要那一塊的寬高
 const compact = computed(() => size.page < NARROW)
 const tiny = computed(() => size.h < 320) // 地圖很小（手機橫放）：字縮小，縣市名和首長名都開時只寫首長名
 const HIST_W = 264 // 右邊「歷任首長」那一欄的寬
@@ -190,7 +190,7 @@ const ticks = computed(() => {
   for (let v = Math.ceil(Y0 / step) * step; v <= Y1; v += step) out.push(v)
   return out
 })
-// 時間 → 位置：v＝離最早那一天幾年。遠到近（預設）照原樣；近到遠＝上下顛倒
+// 時間 → 位置：v＝離最早那一天幾年。遠到近照原樣；近到遠（預設）＝上下顛倒
 const SPAN = Y1 - Y0
 const yy = (v) => (rev.value ? SPAN - v : v)
 const top = (b) => (rev.value ? SPAN - b.b : b.a) // 一格的上緣
@@ -269,10 +269,19 @@ function inner(rings) {
 const layout = computed(() => {
   const { w, h } = size, pad = 16, k = Math.min(1.4, Math.max(0.5, h / 800))
   const fc = (list) => ({ type: 'FeatureCollection', features: list.map((s) => ({ type: 'Feature', geometry: s.geometry })) })
-  const main = geoMercator().fitExtent([[pad, pad], [w - pad - (wide.value ? HIST_W + 12 : 0), h - pad]], fc(GEO.now.filter((s) => s.group === 'main')))
-  // 左下角，三個直排（上面要留給左上角的日期那一塊）；畫面很矮（手機橫放）就改成一排
-  const bh = tiny.value ? 52 : Math.round(Math.min(Math.min(130, w * 0.24) * 0.72, (h - 24 - 20 - 110) / 3)), bw = Math.round(bh / 0.72)
-  const boxes = INSETS.map((name, i) => (tiny.value ? { name, x: 12 + i * (bw + 8), y: h - 12 - bh, w: bw, h: bh } : { name, x: 12, y: h - 12 - bh - (INSETS.length - 1 - i) * (bh + 10), w: bw, h: bh }))
+  // 本島要避開蓋在地圖上的東西（左上的摘要、外島的小框、右邊的歷任首長），三種排法：
+  // ・窄（手機直放）：摘要在上面、外島三個框在最下面排一排，本島放中間那一段
+  // ・很矮（手機橫放）：摘要在左上、外島在左下排一排，本島放它們右邊
+  // ・其他：外島在左下直排，本島放它們右邊（摘要在左上角，本島的西北邊是海，不會擋到）
+  const stack = w < 620 && !tiny.value, row = stack || tiny.value
+  const bw = row ? Math.round(Math.min(tiny.value ? 72 : 104, (w - 24 - 16) / 3)) : Math.round(Math.min(Math.min(130, w * 0.24), ((h - 24 - 20 - size.sh - 12) / 3) / 0.72))
+  const bh = Math.round(bw * (row ? 0.66 : 0.72))
+  const boxes = INSETS.map((name, i) => (row ? { name, x: 12 + i * (bw + 8), y: h - 12 - bh, w: bw, h: bh } : { name, x: 12, y: h - 12 - bh - (INSETS.length - 1 - i) * (bh + 10), w: bw, h: bh }))
+  const rowW = 12 + 3 * bw + 16
+  const x0 = stack ? pad : tiny.value ? Math.max(rowW, size.sw + 12) + 12 : 12 + bw + 16
+  const y0 = stack ? 12 + size.sh + 14 : pad, y1 = stack ? h - 12 - bh - 14 : h - pad
+  const x1 = w - pad - (wide.value ? HIST_W + 12 : 0)
+  const main = geoMercator().fitExtent([[Math.min(x0, x1 - 60), y0], [x1, Math.max(y1, y0 + 60)]], fc(GEO.now.filter((s) => s.group === 'main')))
   const proj = { main }
   for (const b of boxes) proj[b.name] = geoMercator().fitExtent([[b.x + 8, b.y + 8], [b.x + b.w - 8, b.y + b.h - 22]], fc(GEO.now.filter((s) => s.group === b.name)))
   const build = (list) => list.map((s) => {
@@ -386,9 +395,11 @@ onMounted(() => {
     const m = mapEl.value.getBoundingClientRect()
     if (!m.width) return
     size.w = Math.round(m.width), size.h = Math.round(m.height), size.page = split.value.clientWidth, size.th = tbody.value.clientHeight
+    size.sw = sumEl.value.offsetWidth, size.sh = sumEl.value.offsetHeight
   })
   ro.observe(split.value)
   ro.observe(mapEl.value)
+  ro.observe(sumEl.value)
   window.addEventListener('keydown', onKey)
   loadPhotos()
 })
