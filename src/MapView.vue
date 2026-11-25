@@ -39,7 +39,7 @@
 
       <!-- 右：地圖 -->
       <div ref="mapEl" class="map" :class="{ tiny }">
-        <svg :width="size.w" :height="size.h" @mousemove="onMapHover" @mouseleave="hotKey = null, tip?.sheet || (tip = null)" @click="onMapClick">
+        <svg :width="size.w" :height="size.h" @mousemove="onMapHover" @mouseleave="hotKey = null, tip?.sheet || tip?.pin || (tip = null)" @click="onMapClick">
           <defs>
             <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="6" fill="rgba(14, 14, 15, 0.4)" /></pattern>
             <!-- 縣市的立體感（浮雕）：朝左上的邊緣一條白邊、朝右下的邊緣一條黑影，都畫在形狀裡面。
@@ -386,7 +386,7 @@ const panel = computed(() => {
 watch(() => [pinKey.value, panel.value?.rows.find((r) => r.on)?.t.start], () => nextTick(() => histList.value?.querySelector('.on')?.scrollIntoView({ block: 'nearest' })))
 const shapeOf = (e) => { const k = e.target.closest?.('[data-k]')?.dataset.k; return k && shapes.value.find((s) => s.key === k) }
 function onMapHover(e) {
-  if (tip.value?.sheet) return // 觸控開的卡：留著
+  if (tip.value?.sheet || tip.value?.pin) return // 固定住的卡：留著
   const s = shapeOf(e)
   hotKey.value = s?.run ? s.key : null
   if (s) pinKey.value = s.sub ? `${s.county.slice(0, 2)}縣` : s.key
@@ -394,9 +394,11 @@ function onMapHover(e) {
 }
 function onMapClick(e) {
   const s = shapeOf(e)
-  // 觸控點縣市：先出資訊卡（卡上有開維基的按鈕）；點空白把卡收掉。滑鼠：直接開維基
+  // 點縣市不直接開維基（要開：右邊那一欄、資訊卡上的連結）。
+  // 觸控：出資訊卡，點空白把卡收掉；滑鼠：選這個縣市（右邊那一欄換成它，跟滑過去一樣）
   if (e.pointerType === 'touch' || e.pointerType === 'pen') tip.value = s?.run ? { ...termTip(s.run, {}), sheet: true } : null
-  else if (s?.run) window.open(termUrl(s.run), '_blank', 'noopener')
+  else if (s && wide.value) pinKey.value = s.sub ? `${s.county.slice(0, 2)}縣` : s.key
+  else tip.value = s?.run ? { ...termTip(s.run, tipPos(e)), pin: true } : null // 沒有右邊那一欄（視窗窄）：把資訊卡固定住，卡上有連結
 }
 function onPresHover(e) {
   if (tip.value?.sheet) return
@@ -457,7 +459,7 @@ onBeforeUnmount(() => {
 .map svg { display: block; }
 .inset rect { fill: var(--card-bg); stroke: var(--card-line); } /* 跟卡片同一組底、框、圓角 */
 .land { filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35)); }
-.county path { cursor: pointer; transition: fill 0.25s; } /* 縣市之間不描線：每個縣市往裡縮 0.5px（濾鏡），中間留 1px 的間隙 */
+.county path { cursor: default; transition: fill 0.25s; } /* 縣市之間不描線：每個縣市往裡縮 0.5px（濾鏡），中間留 1px 的間隙 */
 .county .over { pointer-events: none; transition: none; }
 .county.sub path { stroke: none; } /* 縣轄市時期的新竹市、嘉義市：併在縣裡，不畫界線 */
 .county.none path { cursor: default; }

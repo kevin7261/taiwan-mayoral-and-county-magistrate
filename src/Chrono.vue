@@ -29,7 +29,7 @@
     </ToolBar>
 
     <div ref="scroller" class="scroller" :class="{ dragging, nav }" tabindex="0" :style="{ fontSize: `${11 * f}px` }"
-      @wheel="onWheel" @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp" @mousemove="onHover" @mouseleave="tip?.sheet || (tip = null)" @scroll="tip = null">
+      @wheel="onWheel" @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp" @mousemove="onHover" @mouseleave="tip?.sheet || tip?.pin || (tip = null)" @scroll="tip = null">
       <div class="sheet" :style="{ gridTemplateColumns: `${padX}px ${axisW}px ${cw}px ${padX}px`, gridTemplateRows: `${padY}px ${headH}px ${ch}px ${padY}px` }">
         <!-- 左上角：凍結欄的欄名 -->
         <div class="corner">
@@ -242,7 +242,7 @@ function bg(color, title, note) {
 }
 const tip = ref(null)
 function onHover(e) {
-  if (tip.value?.sheet) return // 觸控開的卡：留著，不跟滑鼠事件走
+  if (tip.value?.sheet || tip.value?.pin) return // 固定住的卡：留著，不跟滑鼠走
   const el = dragging.value ? null : e.target.closest?.('[data-i], [data-p]')
   if (!el) return (tip.value = null)
   tip.value = el.dataset.p != null ? presTip(PRES[el.dataset.p], tipPos(e)) : termTip(blocks[el.dataset.i].t, tipPos(e))
@@ -270,10 +270,17 @@ function onUp(e) {
   if (!down || e.pointerId !== down.id) return
   if (e.type === 'pointerup' && down.moved < 5 && e.timeStamp - down.t < 500) {
     const el = document.elementFromPoint(e.clientX, e.clientY), blk = el?.closest('[data-i], [data-p]')
-    // 觸控點格子：先出資訊卡（卡上有開維基的按鈕）；點別的地方把卡收掉。滑鼠、縣市名：直接開維基
-    if (!down.mouse && blk) tip.value = { ...(blk.dataset.p != null ? presTip(PRES[blk.dataset.p], {}) : termTip(blocks[blk.dataset.i].t, {})), sheet: true }
-    else if (!down.mouse && tip.value) tip.value = null
-    else { const url = el?.closest('[data-url]')?.dataset.url; if (url) window.open(url, '_blank', 'noopener') }
+    // 點格子不直接開維基：把資訊卡固定住（觸控＝從下面出來的卡；滑鼠＝留在游標旁邊），卡上有開維基的連結。
+    // 已經有固定的卡：點別的地方＝收掉。上面的縣市名是連結，點了開縣市的條目
+    const hold = down.mouse ? { pin: true } : { sheet: true }
+    if (blk) tip.value = { ...(blk.dataset.p != null ? presTip(PRES[blk.dataset.p], tipPos(e)) : termTip(blocks[blk.dataset.i].t, tipPos(e))), ...hold }
+    else if (tip.value?.sheet || tip.value?.pin) tip.value = null
+    else {
+      // 上面的縣市名：滑鼠＝直接開縣市的條目；觸控沒有滑過這回事、容易誤觸，不直接跳走：先出一張卡，卡上有連結
+      const head = el?.closest('.heads [data-url]')
+      if (head && down.mouse) window.open(head.dataset.url, '_blank', 'noopener')
+      else if (head) tip.value = { sheet: true, plain: true, name: head.textContent.trim(), tags: [], unit: '縣市', url: head.dataset.url }
+    }
   }
   down = null
   dragging.value = false
