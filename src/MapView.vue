@@ -100,7 +100,8 @@
         </svg>
         <!-- 左上角：那一天的日期、總統、各黨幾個縣市 -->
         <div ref="sumEl" class="sum kcard">
-          <div class="kcard-head"><b class="kcard-title">{{ ymd(date) }}</b><span v-if="president" class="kcard-sub"><i class="dot" :style="{ background: COLOR[president.party] }"></i>總統 {{ president.name }}</span></div>
+          <div class="kcard-head"><b class="kcard-title">{{ ymd(date) }}</b><!-- 那一天的總統：連到他的維基百科條目 -->
+            <a v-if="president" class="kcard-sub pres-link" :href="wiki(president.name)" target="_blank" rel="noopener" :title="`維基百科：${president.name}`"><i class="dot" :style="{ background: COLOR[president.party] }"></i>總統 {{ president.name }}<span class="material-symbols-outlined">open_in_new</span></a></div>
           <div class="sum-tally">
             <span v-for="p in tally" :key="p.key"><i class="dot" :style="{ background: p.color }"></i>{{ p.label }} <b>{{ p.n }}</b></span>
           </div>
@@ -511,6 +512,9 @@ onBeforeUnmount(() => {
 .kcard-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
 .kcard-sub { display: inline-flex; align-items: center; gap: 6px; }
 .sum { position: absolute; left: 12px; top: 12px; max-width: 250px; padding: var(--card-pad); font-size: 12px; line-height: 1.6; pointer-events: none; }
+.pres-link { pointer-events: auto; border-radius: 6px; transition: color 0.12s; } /* 整張摘要不擋滑鼠，只有這個連結可以點 */
+.pres-link .material-symbols-outlined { font-size: 14px; }
+.pres-link:hover { color: var(--text); }
 .sum-tally { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--card-line); color: var(--muted); }
 .sum-tally span { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sum-tally b { color: var(--text); font-variant-numeric: tabular-nums; }
