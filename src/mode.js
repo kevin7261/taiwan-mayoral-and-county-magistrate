@@ -13,4 +13,4 @@ window.addEventListener('hashchange', () => (mode.value = fromHash()))
 // 時間的方向（編年表、地圖的時間軸共用）：true＝近到遠（現在在上面，預設）、false＝遠到近（最早的在上面）
 export const REV_DEFAULT = true
 export const rev = ref(REV_DEFAULT)
-export const ORDERS = [[true, '近到遠', '時間由上往下：現在在最上面（預設）'], [false, '遠到近', '時間由上往下：最早的在最上面']]
+export const ORDERS = [[true, '近到久', '時間由上往下：現在在最上面（預設）'], [false, '久到近', '時間由上往下：最早的在最上面']]
