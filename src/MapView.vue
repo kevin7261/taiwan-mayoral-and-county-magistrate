@@ -395,8 +395,8 @@ function onMapHover(e) {
 function onMapClick(e) {
   const s = shapeOf(e)
   // 點縣市不直接開維基（要開：右邊那一欄、資訊卡上的連結）。
-  // 觸控：出資訊卡，點空白把卡收掉；滑鼠：選這個縣市（右邊那一欄換成它，跟滑過去一樣）
-  if (e.pointerType === 'touch' || e.pointerType === 'pen') tip.value = s?.run ? { ...termTip(s.run, {}), sheet: true } : null
+  // 觸控：把資訊卡固定在點的地方旁邊（跟電腦一樣的卡），點空白把卡收掉；滑鼠：選這個縣市（右邊那一欄換成它，跟滑過去一樣）
+  if (e.pointerType === 'touch' || e.pointerType === 'pen') tip.value = s?.run ? { ...termTip(s.run, tipPos(e)), pin: true } : null
   else if (s && wide.value) pinKey.value = s.sub ? `${s.county.slice(0, 2)}縣` : s.key
   else tip.value = s?.run ? { ...termTip(s.run, tipPos(e)), pin: true } : null // 沒有右邊那一欄（視窗窄）：把資訊卡固定住，卡上有連結
 }

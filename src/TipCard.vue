@@ -1,7 +1,7 @@
 <template>
   <!-- 資訊卡：照片（維基百科條目的主圖，有才放）、名字、註記、生卒、黨籍、任期。
        滑鼠：跟著游標的浮動卡；觸控（tip.sheet）：點一下格子／縣市，從畫面下面出來的一張卡，裡面有開維基的按鈕 -->
-  <div v-if="tip" class="tipcard kcard" :class="{ sheet: tip.sheet, pin: tip.pin }" :style="tip.sheet ? null : tip.pos" @pointerdown.stop @click.stop>
+  <div v-if="tip" class="tipcard kcard" :class="{ sheet: tip.sheet, pin: tip.pin }" ref="el" :style="tip.sheet ? null : { ...tip.pos, transform: `translate(${shift.x}px, ${shift.y}px)` }" @pointerdown.stop @click.stop>
     <img v-if="tip.photo" :src="tip.photo" alt="" />
     <div class="tc-body">
       <div class="tc-name kcard-title">{{ tip.name }}<span v-for="g in tip.tags" :key="g" class="badge">{{ g }}</span></div>
@@ -22,12 +22,27 @@
 </template>
 
 <script setup>
-defineProps({ tip: { type: Object, default: null } })
+import { nextTick, reactive, ref, watch } from 'vue'
+
+const props = defineProps({ tip: { type: Object, default: null } })
 defineEmits(['close'])
+
+// 卡片不可以超出瀏覽器的畫面：位置先照游標放（shared.js 的 tipPos），畫出來之後量實際的大小，
+// 哪一邊超出去就往回推（四邊各留 8px）。內容、位置一變就重量一次
+const el = ref(null), shift = reactive({ x: 0, y: 0 })
+const M = 8
+watch(() => props.tip, async (t) => {
+  if (!t || t.sheet) return
+  await nextTick()
+  if (!el.value) return
+  const r = el.value.getBoundingClientRect(), x = r.left - shift.x, y = r.top - shift.y // 沒推過的位置
+  shift.x = Math.round(Math.max(M - x, Math.min(0, innerWidth - M - (x + r.width))))
+  shift.y = Math.round(Math.max(M - y, Math.min(0, innerHeight - M - (y + r.height))))
+}, { flush: 'post' })
 </script>
 
 <style scoped>
-.tipcard { position: fixed; z-index: 20; display: flex; gap: 12px; width: max-content; max-width: 300px; padding: var(--card-pad); color: var(--text); font-size: 12px; line-height: 1.5; pointer-events: none; }
+.tipcard { position: fixed; z-index: 20; display: flex; gap: 12px; width: max-content; max-width: min(300px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: hidden; padding: var(--card-pad); color: var(--text); font-size: 12px; line-height: 1.5; pointer-events: none; }
 .tipcard img { flex: none; width: 72px; height: 96px; border-radius: 8px; object-fit: cover; object-position: top; background: var(--btn); }
 .tc-body { min-width: 0; }
 .tc-name { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 4px; }
@@ -38,7 +53,7 @@ defineEmits(['close'])
 .tc-date { margin-top: 4px; font-variant-numeric: tabular-nums; }
 .tc-dim { color: var(--dim); white-space: normal; }
 /* 點了固定住的卡（滑鼠）：可以點裡面的連結 */
-.tipcard.pin { pointer-events: auto; max-width: 340px; }
+.tipcard.pin { pointer-events: auto; max-width: min(340px, calc(100vw - 16px)); }
 .tipcard.pin .tc-open { --bs-btn-padding-y: 4px; --bs-btn-padding-x: 10px; --bs-btn-font-size: 12px; margin-top: 8px; }
 /* 觸控：畫面下面的一張卡 */
 .tipcard.sheet { left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); width: auto; max-width: none; padding: 14px; font-size: 13px; pointer-events: auto; animation: up 0.18s ease-out; }

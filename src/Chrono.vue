@@ -270,16 +270,16 @@ function onUp(e) {
   if (!down || e.pointerId !== down.id) return
   if (e.type === 'pointerup' && down.moved < 5 && e.timeStamp - down.t < 500) {
     const el = document.elementFromPoint(e.clientX, e.clientY), blk = el?.closest('[data-i], [data-p]')
-    // 點格子不直接開維基：把資訊卡固定住（觸控＝從下面出來的卡；滑鼠＝留在游標旁邊），卡上有開維基的連結。
+    // 點格子不直接開維基：把資訊卡固定在點的地方旁邊（手機、電腦一樣），卡上有開維基的連結。
     // 已經有固定的卡：點別的地方＝收掉。上面的縣市名是連結，點了開縣市的條目
-    const hold = down.mouse ? { pin: true } : { sheet: true }
+    const hold = { pin: true } // 手機跟電腦一樣：卡片固定在點的地方旁邊（不會超出畫面，見 TipCard）
     if (blk) tip.value = { ...(blk.dataset.p != null ? presTip(PRES[blk.dataset.p], tipPos(e)) : termTip(blocks[blk.dataset.i].t, tipPos(e))), ...hold }
     else if (tip.value?.sheet || tip.value?.pin) tip.value = null
     else {
       // 上面的縣市名：滑鼠＝直接開縣市的條目；觸控沒有滑過這回事、容易誤觸，不直接跳走：先出一張卡，卡上有連結
       const head = el?.closest('.heads [data-url]')
       if (head && down.mouse) window.open(head.dataset.url, '_blank', 'noopener')
-      else if (head) tip.value = { sheet: true, plain: true, name: head.textContent.trim(), tags: [], unit: '縣市', url: head.dataset.url }
+      else if (head) tip.value = { pin: true, plain: true, pos: tipPos(e), name: head.textContent.trim(), tags: [], unit: '縣市', url: head.dataset.url }
     }
   }
   down = null
