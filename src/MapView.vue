@@ -64,11 +64,6 @@
             <!-- 只縮 0.5px（非民選的斜線那一層用，才不會蓋到間隙） -->
             <filter id="gap"><feMorphology operator="erode" radius="0.5" /></filter>
           </defs>
-          <!-- 底下的格線＝真的經線、緯線（每 0.5 度一條，跟著本島的投影走），整度的標度數 -->
-          <g class="grat">
-            <line v-for="g in layout.grat" :key="g.k" :x1="g.x1" :y1="g.y1" :x2="g.x2" :y2="g.y2" :class="{ major: g.label }" />
-            <text v-for="g in layout.grat.filter((g) => g.label)" :key="g.k" :x="g.tx" :y="g.ty" :text-anchor="g.anchor">{{ g.label }}</text>
-          </g>
           <!-- 外島三縣的小框（左下角）：連江、金門、澎湖 -->
           <g v-for="b in layout.boxes" :key="b.name" class="inset">
             <rect :x="b.x" :y="b.y" :width="b.w" :height="b.h" rx="12" />
@@ -88,7 +83,7 @@
           </g>
           <!-- 字畫在所有縣市上面 -->
           <!-- 字（和照片）：位置是 labels 排過的，互相不會蓋到；被推離原位比較遠的畫一條細線指回去 -->
-          <g v-for="s in labels" :key="s.key" class="label" :class="{ out: s.group !== 'main' || s.sea }">
+          <g v-for="s in labels" :key="s.key" class="label">
             <line v-if="s.far" class="lead" :x1="s.x" :y1="s.ay" :x2="s.lx" :y2="s.cy" />
             <!-- 照片（開了「照片」、而且這位首長的維基條目有主圖）：一個圓形的頭像，放在字的上面，外圈是黨色 -->
             <g v-if="s.face" class="face">
@@ -110,11 +105,14 @@
         </div>
         <!-- 右邊：滑鼠移到的那個縣市的歷任首長（移開後留著，可以捲；點一列＝跳到那一任就任那天） -->
         <aside v-if="panel" class="hist kcard">
-          <div class="kcard-head"><a class="kcard-title" :href="wiki(panel.title)" target="_blank" rel="noopener" :title="`維基百科：${panel.title}`">{{ panel.title }}<span class="material-symbols-outlined">open_in_new</span></a><span class="kcard-sub">歷任首長・{{ panel.rows.length }} 任</span></div>
+          <!-- 標題整列是連到這個縣市維基百科的連結；外連圖示靠右（跟下面兩種的對齊同一條線） -->
+          <a class="kcard-head" :href="wiki(panel.title)" target="_blank" rel="noopener" :title="`維基百科：${panel.title}`"><b class="kcard-title">{{ panel.title }}</b><span class="kcard-sub">歷任首長・{{ panel.rows.length }} 任</span><span class="material-symbols-outlined hn-link">open_in_new</span></a>
           <!-- 那一天在任的那一位：大的照片＋生卒、黨籍、任期（跟資訊卡同樣的內容） -->
           <a v-if="panel.now" class="hist-now" :href="panel.now.url" target="_blank" rel="noopener" :title="`維基百科：${panel.now.name}`">
             <img v-if="panel.now.photo" :src="panel.now.photo" alt="" />
             <span v-else class="ph">{{ panel.now.name[0] }}</span>
+            <!-- 右上角的外連圖示（跟下面每一列最右邊的同一種、對齊同一條線） -->
+            <span class="material-symbols-outlined hn-link">open_in_new</span>
             <span class="hn-body">
               <span class="hn-name">{{ panel.now.name }}<em v-for="g in panel.now.tags" :key="g">{{ g }}</em></span>
               <span v-if="panel.now.life" class="hn-dim">{{ panel.now.life }}</span>
@@ -316,11 +314,7 @@ const layout = computed(() => {
     const pr = proj[s.group], [cx, cy] = (box ? null : inner(big.coordinates.map((r) => r.map((q) => pr(q))))) ?? path.centroid(big), [dx, dy] = NUDGE[s.key] ?? [0, 0]
     return { ...s, d: path({ type: 'Feature', geometry: s.geometry }), x: box ? box.x + box.w / 2 : cx + dx * k, y: box ? box.y + box.h - (unitOn.value && show.name ? 17 : 8) : cy + dy * k - (unitOn.value && show.name ? 3 : -4), cy: cy + dy * k }
   })
-  // 經緯線：畫面四個角換回經緯度，中間每 0.5 度一條（麥卡托投影：經線是直的、緯線是橫的）
-  const [lon0, lat1] = main.invert([0, 0]), [lon1, lat0] = main.invert([w, h]), grat = []
-  for (let v = Math.ceil(lon0 * 2) / 2; v <= lon1; v += 0.5) { const x = main([v, 0])[0]; grat.push({ k: `x${v}`, x1: x, x2: x, y1: 0, y2: h, label: v % 1 ? '' : `${v}°E`, tx: x + 4, ty: h - 6, anchor: 'start' }) }
-  for (let v = Math.ceil(lat0 * 2) / 2; v <= lat1; v += 0.5) { const y = main([0, v])[1]; grat.push({ k: `y${v}`, x1: 0, x2: w, y1: y, y2: y, label: v % 1 ? '' : `${v}°N`, tx: w - (wide.value ? HIST_W + 18 : 6), ty: y - 4, anchor: 'end' }) }
-  return { boxes, grat, now: build(GEO.now), old: build(GEO.old) }
+  return { boxes, now: build(GEO.now), old: build(GEO.old) }
 })
 // 那一天誰在任
 const runAt = (county, d, unit) => RUNS[county]?.find((t) => t.start <= d && (d < t.end || t.end === H.asOf) && (!unit || t.unit === unit))
@@ -363,7 +357,7 @@ const labels = computed(() => {
   }
   return list.map((L) => {
     const top = L.y - (L.fh + L.th) / 2
-    return { ...L.s, face: L.face, sea: !!NUDGE[L.s.key], lx: L.x, ly: top + L.fh + fs * 0.85, fy: top + F / 2 + 1, cy: L.y, ay: L.y0, far: Math.hypot(L.x - L.x0, L.y - L.y0) > 16 }
+    return { ...L.s, face: L.face, lx: L.x, ly: top + L.fh + fs * 0.85, fy: top + F / 2 + 1, cy: L.y, ay: L.y0, far: Math.hypot(L.x - L.x0, L.y - L.y0) > 16 }
   })
 })
 // 各黨那一天有幾個縣市（代理、官派也算在那個人的黨）
@@ -460,9 +454,6 @@ onBeforeUnmount(() => {
 
 /* 右：地圖 */
 .map { flex: 1; min-width: 0; position: relative; overflow: hidden; background: radial-gradient(ellipse at 55% 45%, var(--map-glow) 0, transparent 68%), var(--bg); }
-.grat line { stroke: var(--grid); stroke-width: 1; }
-.grat line.major { stroke: var(--grid-strong); stroke-opacity: 0.6; }
-.grat text { fill: var(--dim); font-size: 9.5px; font-variant-numeric: tabular-nums; }
 .map svg { display: block; }
 .inset rect { fill: var(--card-bg); stroke: var(--card-line); } /* 跟卡片同一組底、框、圓角 */
 .land { filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35)); }
@@ -479,7 +470,7 @@ onBeforeUnmount(() => {
 .face image { clip-path: circle(50%); }
 .face circle { stroke: rgba(14, 14, 15, 0.85); stroke-width: 1; }
 .face { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5)); }
-.label text { text-anchor: middle; fill: #fff; paint-order: stroke; stroke: rgba(0, 0, 0, 0.5); stroke-width: 2.4px; stroke-linejoin: round; font-size: 12px; letter-spacing: 0.02em; }
+.label text { text-anchor: middle; fill: #fff; paint-order: stroke; stroke: rgba(0, 0, 0, 0.72); stroke-width: 2.6px; stroke-linejoin: round; font-size: 12px; letter-spacing: 0.02em; }
 .label .unit { fill: rgba(255, 255, 255, 0.82); font-size: 10px; font-weight: 500; }
 .label .name { font-weight: 700; }
 .map.tiny .label text { font-size: 9px; stroke-width: 2px; }
@@ -487,10 +478,6 @@ onBeforeUnmount(() => {
 .map.tiny .sum .kcard-title { font-size: 14px; }
 .map.tiny .sum-tally { margin-top: 3px; padding-top: 3px; }
 .label .tag { fill: #ffe27a; font-size: 9px; font-weight: 600; }
-/* 外島小框裡的字不在色塊上：用一般的文字顏色、不描邊 */
-.label.out text { fill: var(--text); stroke: none; }
-.label.out .unit { fill: var(--muted); }
-.label.out .tag { fill: var(--ev); }
 /* 地圖上的卡片：左上的摘要、右邊的歷任首長（樣子在 style.css 的 .card；外島的小框是同一組底、框、圓角） */
 .kcard-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
 .kcard-sub { display: inline-flex; align-items: center; gap: 6px; }
@@ -510,14 +497,19 @@ onBeforeUnmount(() => {
 .hist-row i.acting::after { content: ''; position: absolute; inset: 0; background: rgba(14, 14, 15, 0.45); }
 .hr-photo { flex: none; width: 30px; height: 38px; border-radius: 6px; object-fit: cover; object-position: top; background: var(--btn); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
 .hr-photo.none { display: grid; place-items: center; color: var(--dim); font-size: 14px; }
-.hist-now { flex: none; display: flex; gap: 12px; padding: var(--card-pad); border-bottom: 1px solid var(--card-line); color: var(--text); transition: background-color 0.12s; }
+.hist-now { position: relative; flex: none; display: flex; gap: 12px; padding: var(--card-pad); border-bottom: 1px solid var(--card-line); color: var(--text); transition: background-color 0.12s; }
 .hist-now:hover { background: rgba(var(--fg), 0.05); }
 .hist-now img, .hist-now .ph { flex: none; width: 76px; height: 100px; border-radius: 8px; object-fit: cover; object-position: top; background: var(--btn); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
 .hist-now .ph { display: grid; place-items: center; color: var(--dim); font-size: 26px; }
 .hn-body { min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 12px; line-height: 1.5; }
-.hn-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 2px; font-size: 17px; font-weight: 700; line-height: 1.3; }
+.hn-name { padding-right: 26px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 2px; font-size: 17px; font-weight: 700; line-height: 1.3; }
 .hn-name em { padding: 1px 6px; border-radius: 999px; background: rgba(var(--fg), 0.1); color: var(--muted); font-style: normal; font-size: 10.5px; font-weight: 500; }
 .hn-row { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* 卡片右上角的外連圖示（跟下面每一列最右邊的一樣）：整張卡片是連到維基百科的連結 */
+.hn-link { position: absolute; right: 12px; top: 12px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: var(--dim); font-size: 16px; transition: background-color 0.12s, color 0.12s; }
+.hist .kcard-head { position: relative; padding-right: 44px; color: var(--text); }
+.hist .kcard-head .hn-link { top: 50%; translate: 0 -50%; }
+.hist .kcard-head:hover .hn-link, .hist-now:hover .hn-link { background: rgba(var(--fg), 0.12); color: var(--text); }
 .hn-dim { color: var(--muted); font-variant-numeric: tabular-nums; }
 .hr-main { flex: 1; min-width: 0; line-height: 1.35; }
 .hr-main b { font-weight: 600; }
@@ -526,9 +518,6 @@ onBeforeUnmount(() => {
 .hr-wiki { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: var(--dim); transition: background-color 0.12s, color 0.12s; }
 .hr-wiki:hover { background: rgba(var(--fg), 0.12); color: var(--text); }
 .hr-wiki .material-symbols-outlined { font-size: 16px; }
-.hist .kcard-title { display: inline-flex; align-items: center; gap: 4px; }
-.hist .kcard-title .material-symbols-outlined { color: var(--dim); font-size: 15px; }
-.hist .kcard-title:hover, .hist .kcard-title:hover .material-symbols-outlined { color: var(--ev-up); }
 .hr-date { flex: none; color: var(--text); opacity: 0.8; font-size: 10.5px; line-height: 1.25; text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 720px) {
   .sum { left: 8px; top: 8px; max-width: 170px; padding: 8px; font-size: 11px; }
