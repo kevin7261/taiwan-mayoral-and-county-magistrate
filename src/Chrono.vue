@@ -52,7 +52,7 @@
             <span v-if="p.hf >= 11 && (show.name || show.time)" :style="{ top: `${headH}px` }"><template v-if="show.name"><b>{{ p.name }}</b><em v-if="!p.end" class="now">現任</em></template><template v-if="show.time"><small v-if="p.hf >= (show.name ? 27 : 14)">{{ dates(p)[0] }}</small><small v-if="p.hf >= (show.name ? 36 : 23)">{{ dates(p)[1] }}</small></template></span>
           </div>
           <!-- 大事：日期＋名稱；擠在一起的往下排開，引線指回實際的時間 -->
-          <svg v-if="EV_W" class="leads" :style="{ left: `${(YEAR_W + PRES_W) * f}px` }" width="12" height="1"><path v-for="e in events" :key="e.date + e.label" :d="`M1 ${e.p}L${9 * f} ${e.ly}`" /></svg>
+          <svg v-if="EV_W" class="leads" :style="{ left: `${(YEAR_W + PRES_W) * f}px` }" width="12" height="1"><path v-for="e in events" :key="e.date + e.label" :class="e.kind" :d="`M1 ${e.p}L${9 * f} ${e.ly}`" /></svg>
           <div v-for="e in (EV_W ? events : [])" :key="e.date + e.label" class="ev" :class="e.kind" :title="e.tip" :style="{ left: `${(YEAR_W + PRES_W) * f}px`, top: `${e.ly}px` }"><small>{{ ymd(e.date) }}</small>{{ e.label }}</div>
         </div>
         <!-- 格子：一格一人，點了開維基 -->

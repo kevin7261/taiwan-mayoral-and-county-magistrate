@@ -29,12 +29,14 @@
 <script setup>
 import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import Chrono from './Chrono.vue'
+import Loading from './Loading.vue'
 import { COLOR, UNKNOWN } from './parties.js'
 import { H, count } from './shared.js'
 import { mode } from './mode.js'
 import { theme, toggleTheme } from './theme.js'
 
-const MapView = defineAsyncComponent(() => import('./MapView.vue'))
+// 地圖分頁第一次打開才載入（界線檔比較大）；載的時候中間顯示「載入中」。頁尾有 margin-top: auto，中間還沒東西的時候也留在最下面，不會跑上來
+const MapView = defineAsyncComponent({ loader: () => import('./MapView.vue'), loadingComponent: Loading, delay: 0 })
 // 頁尾的圖例：有人當選過的政黨（照資料的順序）、黨籍不詳、代理、非民選；abbr＝畫面窄的時候用的簡稱
 const ABBR = { kmt: '國', dpp: '民', tpp: '眾', ind: '無', pfp: '親', np: '新', csdp: '民社', cyp: '青', nnc: '新國' }
 const LEGEND = [
@@ -49,7 +51,7 @@ let need = 0, ro
 function fit() {
   const el = lgs.value
   if (!el?.clientWidth) return
-  if (!need && !short.value) need = [...el.children].reduce((w, c) => w + c.offsetWidth, 0) + 6 * (el.children.length - 1)
+  if (!need && !short.value) need = [...el.children].reduce((w, c) => w + c.offsetWidth, 0) + 12 * (el.children.length - 1)
   short.value = need > el.clientWidth + 0.5
 }
 onMounted(() => {
@@ -69,13 +71,13 @@ const VERSION = __APP_VERSION__ // package.json 的 version（vite.config.js 的
 /* 日／夜切換：貼右邊，標題照樣在正中間 */
 .bar .theme { position: absolute; right: 12px; top: 50%; translate: 0 -50%; }
 /* 頁尾：圖例（一顆一顆圓角的標籤）、版本、名字 */
-.foot { flex: none; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--chrome); font-size: 12px; }
+.foot { flex: none; margin-top: auto; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--chrome); font-size: 12px; }
 /* 圖例那一排：只有一行高，排不進這一行的（換到第二行的）整顆被裁掉＝不顯示 */
-.lgs { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; height: 22px; overflow: hidden; }
+.lgs { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; height: 22px; overflow: hidden; }
 .lgs .abbr, .lgs.short .full { display: none; }
 .lgs.short .abbr { display: inline; }
-.lgs.short .lg { gap: 4px; padding: 2px 7px 2px 6px; }
-.lg { flex: none; height: 22px; display: flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: 999px; background: rgba(var(--fg), 0.045); color: var(--muted); white-space: nowrap; }
+.lgs.short .lg { gap: 4px; }
+.lg { flex: none; height: 22px; display: flex; align-items: center; gap: 5px; color: var(--muted); white-space: nowrap; } /* 只有色塊＋字，沒有外面那一圈膠囊 */
 .lg i { flex: none; width: 10px; height: 10px; border-radius: 3px; }
 .lg i.noted { width: 16px; background: #aeaeb2 repeating-linear-gradient(135deg, rgba(var(--shade), 0.75) 0 2px, transparent 2px 5px); } /* 示範用灰色，不是某一黨 */
 .lg i.acting { width: 16px; background: linear-gradient(90deg, #aeaeb2 50%, #68686b 50%); } /* 左：原本的顏色，右：壓暗後 */

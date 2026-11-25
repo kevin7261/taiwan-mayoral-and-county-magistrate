@@ -30,7 +30,7 @@
             <i v-for="c in p.cuts" :key="c" class="cut" :style="{ top: `${cut(p, c) * py}px` }"></i>
             <span v-if="p.h >= 11"><b>{{ p.name }}</b><em v-if="!p.end" class="now">現任</em><small v-if="p.h >= 27">{{ dates(p)[0] }}</small><small v-if="p.h >= 36">{{ dates(p)[1] }}</small></span>
           </div>
-          <svg v-if="EV_W" class="leads" :style="{ left: `${YEAR_W + PRES_W}px` }" width="12" height="1"><path v-for="e in events" :key="e.date + e.label" :d="`M1 ${e.p}L9 ${e.ly}`" /></svg>
+          <svg v-if="EV_W" class="leads" :style="{ left: `${YEAR_W + PRES_W}px` }" width="12" height="1"><path v-for="e in events" :key="e.date + e.label" :class="e.kind" :d="`M1 ${e.p}L9 ${e.ly}`" /></svg>
           <div v-for="e in (EV_W ? events : [])" :key="e.date + e.label" class="ev" :class="[e.kind, { past: e.date > date }]" :title="e.tip" :style="{ left: `${YEAR_W + PRES_W}px`, top: `${e.ly}px` }"><small>{{ ymd(e.date) }}</small>{{ e.label }}</div>
           <!-- 選到的那一天 -->
           <div class="phead" :class="{ low: headY > size.th - 12, high: headY < 12 }" :style="{ top: `${Math.min(size.th - 1, headY)}px` }"><span>{{ ymd(date) }}</span></div>
@@ -64,6 +64,11 @@
             <!-- 只縮 0.5px（非民選的斜線那一層用，才不會蓋到間隙） -->
             <filter id="gap"><feMorphology operator="erode" radius="0.5" /></filter>
           </defs>
+          <!-- 底下的格線＝真的經線、緯線（每 0.5 度一條，跟著本島的投影走），整度的標度數 -->
+          <g class="grat">
+            <line v-for="g in layout.grat" :key="g.k" :x1="g.x1" :y1="g.y1" :x2="g.x2" :y2="g.y2" :class="{ major: g.label }" />
+            <text v-for="g in layout.grat.filter((g) => g.label)" :key="g.k" :x="g.tx" :y="g.ty" :text-anchor="g.anchor">{{ g.label }}</text>
+          </g>
           <!-- 外島三縣的小框（左下角）：連江、金門、澎湖 -->
           <g v-for="b in layout.boxes" :key="b.name" class="inset">
             <rect :x="b.x" :y="b.y" :width="b.w" :height="b.h" rx="12" />
@@ -71,7 +76,8 @@
           <!-- 整塊陸地下面一圈黑影：浮在底上 -->
           <g class="land">
             <g v-for="s in shapes" :key="s.key" class="county" :class="{ sub: s.sub, none: !s.run }" :data-k="s.key">
-              <path :d="s.d" :fill="s.fill" :filter="s.sub ? null : 'url(#bevel)'" />
+              <!-- 本島的縣市：往裡縮＋浮雕（見上面的濾鏡）。外島小框裡的島很小，往裡縮會整個不見：不套濾鏡，改描一圈同色的邊讓它粗一點 -->
+              <path :d="s.d" :fill="s.fill" :filter="s.sub || s.group !== 'main' ? null : 'url(#bevel)'" :stroke="s.group !== 'main' ? s.fill : null" :stroke-width="s.group !== 'main' ? 1.6 : null" stroke-linejoin="round" />
               <path v-if="s.run?.note" :d="s.d" fill="url(#hatch)" class="over" filter="url(#gap)" />
             </g>
           </g>
@@ -82,7 +88,7 @@
           </g>
           <!-- 字畫在所有縣市上面 -->
           <!-- 字（和照片）：位置是 labels 排過的，互相不會蓋到；被推離原位比較遠的畫一條細線指回去 -->
-          <g v-for="s in labels" :key="s.key" class="label">
+          <g v-for="s in labels" :key="s.key" class="label" :class="{ out: s.group !== 'main' || s.sea }">
             <line v-if="s.far" class="lead" :x1="s.x" :y1="s.ay" :x2="s.lx" :y2="s.cy" />
             <!-- 照片（開了「照片」、而且這位首長的維基條目有主圖）：一個圓形的頭像，放在字的上面，外圈是黨色 -->
             <g v-if="s.face" class="face">
@@ -105,6 +111,18 @@
         <!-- 右邊：滑鼠移到的那個縣市的歷任首長（移開後留著，可以捲；點一列＝跳到那一任就任那天） -->
         <aside v-if="panel" class="hist kcard">
           <div class="kcard-head"><a class="kcard-title" :href="wiki(panel.title)" target="_blank" rel="noopener" :title="`維基百科：${panel.title}`">{{ panel.title }}<span class="material-symbols-outlined">open_in_new</span></a><span class="kcard-sub">歷任首長・{{ panel.rows.length }} 任</span></div>
+          <!-- 那一天在任的那一位：大的照片＋生卒、黨籍、任期（跟資訊卡同樣的內容） -->
+          <a v-if="panel.now" class="hist-now" :href="panel.now.url" target="_blank" rel="noopener" :title="`維基百科：${panel.now.name}`">
+            <img v-if="panel.now.photo" :src="panel.now.photo" alt="" />
+            <span v-else class="ph">{{ panel.now.name[0] }}</span>
+            <span class="hn-body">
+              <span class="hn-name">{{ panel.now.name }}<em v-for="g in panel.now.tags" :key="g">{{ g }}</em></span>
+              <span v-if="panel.now.life" class="hn-dim">{{ panel.now.life }}</span>
+              <span class="hn-row"><i class="dot" :style="{ background: panel.now.color }"></i>{{ panel.now.party }}</span>
+              <span class="hn-row">{{ panel.now.from }} – {{ panel.now.to }}</span>
+              <span class="hn-dim">在任 {{ panel.now.dur }}<template v-if="panel.now.terms > 1">・共 {{ panel.now.terms }} 任</template></span>
+            </span>
+          </a>
           <div ref="histList" class="hist-list">
             <div v-for="r in panel.rows" :key="r.t.unit + r.t.start" role="button" tabindex="0" class="hist-row" :class="{ on: r.on }" :title="`跳到 ${ymd(r.t.start)}`" @click="go(r.t.start)" @keydown.enter="go(r.t.start)">
               <i :class="{ acting: r.t.acting, noted: r.t.note }" :style="{ background: r.color }"></i>
@@ -283,7 +301,14 @@ const layout = computed(() => {
   const x1 = w - pad - (wide.value ? HIST_W + 12 : 0)
   const main = geoMercator().fitExtent([[Math.min(x0, x1 - 60), y0], [x1, Math.max(y1, y0 + 60)]], fc(GEO.now.filter((s) => s.group === 'main')))
   const proj = { main }
-  for (const b of boxes) proj[b.name] = geoMercator().fitExtent([[b.x + 8, b.y + 8], [b.x + b.w - 8, b.y + b.h - 22]], fc(GEO.now.filter((s) => s.group === b.name)))
+  // 外島三個小框用同一個比例尺（三個縣之間可以比大小）：各自算「剛好放進框裡」的比例，取最小的那個給三個一起用，
+  // 再各自把那個縣的外框中心對到框的中間（字上面那一塊）
+  const isl = boxes.map((b) => ({ b, g: fc(GEO.now.filter((s) => s.group === b.name)) }))
+  const scale = Math.min(...isl.map(({ b, g }) => geoMercator().fitExtent([[b.x + 8, b.y + 8], [b.x + b.w - 8, b.y + b.h - 22]], g).scale()))
+  for (const { b, g } of isl) {
+    const pr = geoMercator().scale(scale).translate([0, 0]), [[l, t], [r, bt]] = geoPath(pr).bounds(g)
+    proj[b.name] = pr.translate([b.x + b.w / 2 - (l + r) / 2, b.y + 8 + (b.h - 30) / 2 - (t + bt) / 2])
+  }
   const build = (list) => list.map((s) => {
     const path = geoPath(proj[s.group]), box = boxes.find((b) => b.name === s.group)
     // 字放在最大那一塊裡離邊界最遠的點（離島的小框：框的下緣）
@@ -291,7 +316,11 @@ const layout = computed(() => {
     const pr = proj[s.group], [cx, cy] = (box ? null : inner(big.coordinates.map((r) => r.map((q) => pr(q))))) ?? path.centroid(big), [dx, dy] = NUDGE[s.key] ?? [0, 0]
     return { ...s, d: path({ type: 'Feature', geometry: s.geometry }), x: box ? box.x + box.w / 2 : cx + dx * k, y: box ? box.y + box.h - (unitOn.value && show.name ? 17 : 8) : cy + dy * k - (unitOn.value && show.name ? 3 : -4), cy: cy + dy * k }
   })
-  return { boxes, now: build(GEO.now), old: build(GEO.old) }
+  // 經緯線：畫面四個角換回經緯度，中間每 0.5 度一條（麥卡托投影：經線是直的、緯線是橫的）
+  const [lon0, lat1] = main.invert([0, 0]), [lon1, lat0] = main.invert([w, h]), grat = []
+  for (let v = Math.ceil(lon0 * 2) / 2; v <= lon1; v += 0.5) { const x = main([v, 0])[0]; grat.push({ k: `x${v}`, x1: x, x2: x, y1: 0, y2: h, label: v % 1 ? '' : `${v}°E`, tx: x + 4, ty: h - 6, anchor: 'start' }) }
+  for (let v = Math.ceil(lat0 * 2) / 2; v <= lat1; v += 0.5) { const y = main([0, v])[1]; grat.push({ k: `y${v}`, x1: 0, x2: w, y1: y, y2: y, label: v % 1 ? '' : `${v}°N`, tx: w - (wide.value ? HIST_W + 18 : 6), ty: y - 4, anchor: 'end' }) }
+  return { boxes, grat, now: build(GEO.now), old: build(GEO.old) }
 })
 // 那一天誰在任
 const runAt = (county, d, unit) => RUNS[county]?.find((t) => t.start <= d && (d < t.end || t.end === H.asOf) && (!unit || t.unit === unit))
@@ -334,7 +363,7 @@ const labels = computed(() => {
   }
   return list.map((L) => {
     const top = L.y - (L.fh + L.th) / 2
-    return { ...L.s, face: L.face, lx: L.x, ly: top + L.fh + fs * 0.85, fy: top + F / 2 + 1, cy: L.y, ay: L.y0, far: Math.hypot(L.x - L.x0, L.y - L.y0) > 16 }
+    return { ...L.s, face: L.face, sea: !!NUDGE[L.s.key], lx: L.x, ly: top + L.fh + fs * 0.85, fy: top + F / 2 + 1, cy: L.y, ay: L.y0, far: Math.hypot(L.x - L.x0, L.y - L.y0) > 16 }
   })
 })
 // 各黨那一天有幾個縣市（代理、官派也算在那個人的黨）
@@ -357,7 +386,7 @@ const panel = computed(() => {
   if (!s) return null
   // 合併前的縣、市只列自己那一邊；現在的臺中、臺南、高雄市列全部（合併前兩邊都有，後面標是哪一邊）
   const list = RUNS[s.county].filter((t) => !s.unit || t.unit === s.unit), mixed = new Set(list.map((t) => t.unit)).size > 1
-  return { title: s.run?.unit ?? s.name, rows: list.map((t) => ({ t, on: t === s.run, color: colorOf(t), tags: termTags(t), unit: mixed ? t.unit : '' })) }
+  return { title: s.run?.unit ?? s.name, now: s.run ? termTip(s.run, {}) : null, rows: list.map((t) => ({ t, on: t === s.run, color: colorOf(t), tags: termTags(t), unit: mixed ? t.unit : '' })) }
 })
 // 換縣市、換時間：捲到在任的那一列
 watch(() => [pinKey.value, panel.value?.rows.find((r) => r.on)?.t.start], () => nextTick(() => histList.value?.querySelector('.on')?.scrollIntoView({ block: 'nearest' })))
@@ -367,7 +396,7 @@ function onMapHover(e) {
   const s = shapeOf(e)
   hotKey.value = s?.run ? s.key : null
   if (s) pinKey.value = s.sub ? `${s.county.slice(0, 2)}縣` : s.key
-  tip.value = s?.run ? termTip(s.run, tipPos(e)) : null
+  tip.value = s?.run && !wide.value ? termTip(s.run, tipPos(e)) : null // 有右邊那一欄就不另外跳卡片（資料在那一欄最上面）
 }
 function onMapClick(e) {
   const s = shapeOf(e)
@@ -430,10 +459,13 @@ onBeforeUnmount(() => {
 .phead span { position: absolute; right: 0; top: -9px; padding: 1px 5px; border-radius: 6px 0 0 6px; background: var(--accent); color: var(--bg); font-size: 10px; font-weight: 700; line-height: 14px; font-variant-numeric: tabular-nums; }
 
 /* 右：地圖 */
-.map { flex: 1; min-width: 0; position: relative; overflow: hidden; background: radial-gradient(ellipse at 58% 45%, var(--map-glow) 0, var(--bg) 70%); }
+.map { flex: 1; min-width: 0; position: relative; overflow: hidden; background: radial-gradient(ellipse at 55% 45%, var(--map-glow) 0, transparent 68%), var(--bg); }
+.grat line { stroke: var(--grid); stroke-width: 1; }
+.grat line.major { stroke: var(--grid-strong); stroke-opacity: 0.6; }
+.grat text { fill: var(--dim); font-size: 9.5px; font-variant-numeric: tabular-nums; }
 .map svg { display: block; }
 .inset rect { fill: var(--card-bg); stroke: var(--card-line); } /* 跟卡片同一組底、框、圓角 */
-.land { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45)); }
+.land { filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35)); }
 .county path { cursor: pointer; transition: fill 0.25s; } /* 縣市之間不描線：每個縣市往裡縮 0.5px（濾鏡），中間留 1px 的間隙 */
 .county .over { pointer-events: none; transition: none; }
 .county.sub path { stroke: none; } /* 縣轄市時期的新竹市、嘉義市：併在縣裡，不畫界線 */
@@ -443,18 +475,22 @@ onBeforeUnmount(() => {
 @keyframes lift { from { transform: scale(1); filter: brightness(1) drop-shadow(0 0 0 rgba(0, 0, 0, 0)); } }
 @media (hover: none) { .lift { display: none; } }
 .label { pointer-events: none; }
-.label .lead { stroke: rgba(255, 255, 255, 0.55); stroke-width: 1; }
+.label .lead { stroke: var(--muted); stroke-width: 1; opacity: 0.7; }
 .face image { clip-path: circle(50%); }
 .face circle { stroke: rgba(14, 14, 15, 0.85); stroke-width: 1; }
 .face { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5)); }
-.label text { text-anchor: middle; fill: #fff; paint-order: stroke; stroke: rgba(14, 14, 15, 0.85); stroke-width: 3px; stroke-linejoin: round; font-size: 12px; }
-.label .unit { fill: #cdd3e0; font-size: 10px; }
+.label text { text-anchor: middle; fill: #fff; paint-order: stroke; stroke: rgba(0, 0, 0, 0.5); stroke-width: 2.4px; stroke-linejoin: round; font-size: 12px; letter-spacing: 0.02em; }
+.label .unit { fill: rgba(255, 255, 255, 0.82); font-size: 10px; font-weight: 500; }
 .label .name { font-weight: 700; }
 .map.tiny .label text { font-size: 9px; stroke-width: 2px; }
 .map.tiny .sum { max-width: 190px; padding: 6px 8px; font-size: 11px; }
 .map.tiny .sum .kcard-title { font-size: 14px; }
 .map.tiny .sum-tally { margin-top: 3px; padding-top: 3px; }
-.label .tag { fill: var(--ev); font-size: 9px; font-weight: 500; }
+.label .tag { fill: #ffe27a; font-size: 9px; font-weight: 600; }
+/* 外島小框裡的字不在色塊上：用一般的文字顏色、不描邊 */
+.label.out text { fill: var(--text); stroke: none; }
+.label.out .unit { fill: var(--muted); }
+.label.out .tag { fill: var(--ev); }
 /* 地圖上的卡片：左上的摘要、右邊的歷任首長（樣子在 style.css 的 .card；外島的小框是同一組底、框、圓角） */
 .kcard-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
 .kcard-sub { display: inline-flex; align-items: center; gap: 6px; }
@@ -466,14 +502,23 @@ onBeforeUnmount(() => {
 .hist { position: absolute; right: 12px; top: 12px; bottom: 12px; width: v-bind("HIST_W + 'px'"); display: flex; flex-direction: column; font-size: 12px; overflow: hidden; }
 .hist .kcard-head { flex: none; padding: var(--card-pad); border-bottom: 1px solid var(--card-line); }
 .hist-list { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; scrollbar-width: thin; scrollbar-color: rgba(var(--fg), 0.28) transparent; }
-.hist-row { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 1px; padding: 5px 6px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: transform 0.12s ease-out, background-color 0.12s; }
+.hist-row { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 1px; padding: 4px 6px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: transform 0.12s ease-out, background-color 0.12s; }
 .hist-row:hover { background: rgba(var(--fg), 0.07); }
 .hist-row.on { background: rgba(var(--fg), 0.12); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); } /* 那一天在任的 */
 .hist-row i { flex: none; position: relative; width: 6px; align-self: stretch; border-radius: 2px; overflow: hidden; }
 .hist-row i.noted { background-image: repeating-linear-gradient(135deg, rgba(14, 14, 15, 0.55) 0 2px, transparent 2px 5px); }
 .hist-row i.acting::after { content: ''; position: absolute; inset: 0; background: rgba(14, 14, 15, 0.45); }
-.hr-photo { flex: none; width: 34px; height: 44px; border-radius: 8px; object-fit: cover; object-position: top; background: var(--btn); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
+.hr-photo { flex: none; width: 30px; height: 38px; border-radius: 6px; object-fit: cover; object-position: top; background: var(--btn); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
 .hr-photo.none { display: grid; place-items: center; color: var(--dim); font-size: 14px; }
+.hist-now { flex: none; display: flex; gap: 12px; padding: var(--card-pad); border-bottom: 1px solid var(--card-line); color: var(--text); transition: background-color 0.12s; }
+.hist-now:hover { background: rgba(var(--fg), 0.05); }
+.hist-now img, .hist-now .ph { flex: none; width: 76px; height: 100px; border-radius: 8px; object-fit: cover; object-position: top; background: var(--btn); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+.hist-now .ph { display: grid; place-items: center; color: var(--dim); font-size: 26px; }
+.hn-body { min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 12px; line-height: 1.5; }
+.hn-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 2px; font-size: 17px; font-weight: 700; line-height: 1.3; }
+.hn-name em { padding: 1px 6px; border-radius: 999px; background: rgba(var(--fg), 0.1); color: var(--muted); font-style: normal; font-size: 10.5px; font-weight: 500; }
+.hn-row { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hn-dim { color: var(--muted); font-variant-numeric: tabular-nums; }
 .hr-main { flex: 1; min-width: 0; line-height: 1.35; }
 .hr-main b { font-weight: 600; }
 .hr-main em { margin-left: 4px; padding: 0 4px; border-radius: 999px; background: rgba(var(--fg), 0.1); color: var(--muted); font-style: normal; font-size: 10px; white-space: nowrap; }
@@ -484,7 +529,7 @@ onBeforeUnmount(() => {
 .hist .kcard-title { display: inline-flex; align-items: center; gap: 4px; }
 .hist .kcard-title .material-symbols-outlined { color: var(--dim); font-size: 15px; }
 .hist .kcard-title:hover, .hist .kcard-title:hover .material-symbols-outlined { color: var(--ev-up); }
-.hr-date { flex: none; color: var(--muted); font-size: 10px; line-height: 1.25; text-align: right; font-variant-numeric: tabular-nums; }
+.hr-date { flex: none; color: var(--text); opacity: 0.8; font-size: 10.5px; line-height: 1.25; text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 720px) {
   .sum { left: 8px; top: 8px; max-width: 170px; padding: 8px; font-size: 11px; }
   .sum .kcard-title { font-size: 15px; }
