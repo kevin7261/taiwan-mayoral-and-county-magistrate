@@ -21,9 +21,9 @@
           <span class="pct">{{ Math.round(z * 100) }}%</span>
         </div>
         <div class="vr"></div>
-        <div class="tb-grp" role="group" aria-label="操作模式">
-          <button type="button" class="btn btn-sm btn-tb" :class="{ active: wheel }" :aria-pressed="wheel" title="滾輪＝縮放（以游標為中心）；跟拖曳模式二選一，再按一次＝關掉（滾輪照一般捲動）" @click="setOp(wheel ? null : 'wheel')">滾輪縮放模式</button>
-          <button type="button" class="btn btn-sm btn-tb" :class="{ active: nav }" :aria-pressed="nav" title="按住拖曳＝移動（表的四周可以拖出去）；跟滾輪縮放模式二選一，再按一次＝關掉" @click="setOp(nav ? null : 'nav')">拖曳模式</button>
+        <!-- 操作模式：二選一。捲動（預設）／滾輪縮放＋拖曳（一按就兩樣都有） -->
+        <div class="tb-grp" role="radiogroup" aria-label="操作模式">
+          <button v-for="[k, l, tip] in OPS" :key="k" type="button" role="radio" class="btn btn-sm btn-tb" :class="{ active: nav === k }" :aria-checked="nav === k" :title="tip" @click="setOp(k)">{{ l }}</button>
         </div>
         <div class="vr"></div>
         <button type="button" class="btn btn-sm btn-tb" title="縮放 100%、字級、顯示項目、滾輪縮放模式、拖曳模式都回到預設（0）" :disabled="isDefault" @click="reset"><span class="material-symbols-outlined">restart_alt</span><span class="lbl">回到預設</span></button>
@@ -88,6 +88,8 @@ const NARROW = 720 // 畫面比這個窄＝手機版面
 const MIN_Z = 0.25, MAX_Z = 4 // 縮放範圍（100%＝整張表剛好放進畫面）
 const STOPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.25, 1.5, 2, 3, 4] // ＋／－ 按鈕一次跳一格
 const FONTS = [0.7, 0.8, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2] // 字級（A－／A＋ 一次跳一格）
+// 操作模式：二選一（false＝捲動、true＝滾輪縮放＋拖曳）
+const OPS = [[false, '捲動', '捲動模式：滾輪＝一般捲動（預設）'], [true, '縮放拖曳', '縮放拖曳模式：滾輪＝縮放（以游標為中心），按住拖曳＝移動（表的四周可以拖出去）']]
 const SHOW = [['name', '市長名'], ['color', '政黨色'], ['time', '時間'], ['photo', '照片']] // 格子上顯示什麼（這一組按鈕只有字，不放圖示）
 
 // 縣市由北到南、再東部、離島；合併的三個縣市佔兩欄（市、縣）
@@ -195,11 +197,11 @@ function setFont(v) {
   apply(z.value)
 }
 const fontStep = (dir) => setFont((dir > 0 ? FONTS.find((s) => s > fs.value + 0.001) : FONTS.findLast((s) => s < fs.value - 0.001)) ?? fs.value)
-// 操作模式：滾輪縮放、拖曳二選一（或都不開）。開關拖曳時四周的空白跟著有、沒有，畫面左上角那一點留在原地
-function setOp(op) {
+// 操作模式：捲動／滾輪縮放＋拖曳，二選一（wheel、nav 兩個一起開、一起關）。
+// 切換時四周的空白跟著有、沒有，畫面左上角那一點留在原地
+function setOp(k) {
   anchor(axisW.value, headH.value)
-  wheel.value = op === 'wheel'
-  nav.value = op === 'nav'
+  wheel.value = nav.value = k
   if (!raf) apply(z.value)
 }
 // 回到預設：100%、預設字級、三樣都顯示、滾輪縮放模式、拖曳模式關掉、捲回左上角

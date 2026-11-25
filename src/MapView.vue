@@ -9,13 +9,12 @@
           <button type="button" class="btn btn-sm btn-tb" :class="{ active: playing }" :aria-pressed="playing" title="播放／暫停（空白鍵）" @click="toggle"><span class="material-symbols-outlined">{{ playing ? 'pause' : 'play_arrow' }}</span><span class="lbl">{{ playing ? '暫停' : '播放' }}</span></button>
           <button type="button" class="btn btn-sm btn-tb" title="下一次首長變動（→）" :disabled="!nextDay" @click="go(nextDay)"><span class="material-symbols-outlined">skip_next</span></button>
           <span class="day">{{ ymd(date) }}</span>
+          <button type="button" class="btn btn-sm btn-tb" title="回到現在（資料截止日）" :disabled="date === H.asOf && !playing" @click="go(H.asOf)"><span class="material-symbols-outlined">restart_alt</span><span class="lbl">回到現在</span></button>
         </div>
         <div class="vr"></div>
         <div class="tb-grp" role="group" aria-label="地圖上顯示什麼">
           <button v-for="[k, l] in SHOW" :key="k" type="button" class="btn btn-sm btn-tb" :class="{ active: show[k] }" :aria-pressed="show[k]" :title="`顯示${l}`" @click="show[k] = !show[k]">{{ l }}</button>
         </div>
-        <div class="vr"></div>
-        <button type="button" class="btn btn-sm btn-tb" title="回到現在（資料截止日）" :disabled="date === H.asOf && !playing" @click="go(H.asOf)"><span class="material-symbols-outlined">restart_alt</span><span class="lbl">回到現在</span></button>
       </div>
     </div>
 
@@ -234,7 +233,29 @@ function prep(fc) {
 }
 const GEO = { now: prep(NOW), old: prep(OLD) }
 // 字的位置微調（px，照地圖大小縮放）：擠在一起的縣市錯開
-const NUDGE = { 基隆市: [26, -14], 臺北市: [-4, -8], 新北市: [16, 30], 新竹市: [-30, -8], 嘉義市: [-34, 2], '臺中市（合併前）': [-24, 2], '臺南市（合併前）': [-26, 6], '高雄市（合併前）': [-28, 10] }
+// 只有放不下字的小市要移到外面（往海那一邊）；其他縣市的字放在「離邊界最遠的那一點」（見 inner）
+const NUDGE = { 基隆市: [24, -16], 新竹市: [-32, -6], 嘉義市: [-36, 0], '臺中市（合併前）': [-26, 0], '臺南市（合併前）': [-28, 4], '高雄市（合併前）': [-30, 8] }
+// 一塊多邊形（畫面座標，第一圈是外框、其他是洞）裡面離邊界最遠的點：字放這裡最不會壓到界線。
+// 形狀不規則的縣市（新北包著臺北、高雄細長）用重心會落在邊上甚至外面。做法：外框裡撒格點，留離所有邊最遠的那一個，再在它附近撒細一點的找一次
+function inner(rings) {
+  const seg = rings.flatMap((r) => r.slice(0, -1).map((a, i) => [a, r[i + 1]]))
+  const inside = (x, y) => { let c = false; for (const [[x1, y1], [x2, y2]] of seg) if ((y1 > y) !== (y2 > y) && x < ((x2 - x1) * (y - y1)) / (y2 - y1) + x1) c = !c; return c }
+  const dist = (x, y) => { let m = Infinity; for (const [[x1, y1], [x2, y2]] of seg) { const dx = x2 - x1, dy = y2 - y1, t = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy || 1))); m = Math.min(m, (x - x1 - t * dx) ** 2 + (y - y1 - t * dy) ** 2) } return m }
+  const xs = rings[0].map((q) => q[0]), ys = rings[0].map((q) => q[1])
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), best = null
+  for (let pass = 0; pass < 2; pass++) {
+    const n = 16, sx = (x1 - x0) / n, sy = (y1 - y0) / n
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
+      const x = x0 + i * sx, y = y0 + j * sy
+      if (!inside(x, y)) continue
+      const d = dist(x, y)
+      if (!best || d > best.d) best = { x, y, d }
+    }
+    if (!best) return null
+    x0 = best.x - sx, x1 = best.x + sx, y0 = best.y - sy, y1 = best.y + sy
+  }
+  return [best.x, best.y]
+}
 // 畫面大小 → 投影、每個縣市的路徑和字的位置（兩份界線都先算好）
 const layout = computed(() => {
   const { w, h } = size, pad = 16, k = Math.min(1.4, Math.max(0.5, h / 800))
@@ -247,10 +268,10 @@ const layout = computed(() => {
   for (const b of boxes) proj[b.name] = geoMercator().fitExtent([[b.x + 8, b.y + 8], [b.x + b.w - 8, b.y + b.h - 22]], fc(GEO.now.filter((s) => s.group === b.name)))
   const build = (list) => list.map((s) => {
     const path = geoPath(proj[s.group]), box = boxes.find((b) => b.name === s.group)
-    // 字放在最大那一塊的中心（離島的小框：框的下緣）
+    // 字放在最大那一塊裡離邊界最遠的點（離島的小框：框的下緣）
     const big = s.geometry.coordinates.map((c) => ({ type: 'Polygon', coordinates: c })).reduce((a, b) => (path.area(b) > path.area(a) ? b : a))
-    const [cx, cy] = path.centroid(big), [dx, dy] = NUDGE[s.key] ?? [0, 0]
-    return { ...s, d: path({ type: 'Feature', geometry: s.geometry }), x: box ? box.x + box.w / 2 : cx + dx * k, y: box ? box.y + box.h - (unitOn.value && show.name ? 17 : 8) : cy + dy * k - (unitOn.value && show.name ? 5 : 0) }
+    const pr = proj[s.group], [cx, cy] = (box ? null : inner(big.coordinates.map((r) => r.map((q) => pr(q))))) ?? path.centroid(big), [dx, dy] = NUDGE[s.key] ?? [0, 0]
+    return { ...s, d: path({ type: 'Feature', geometry: s.geometry }), x: box ? box.x + box.w / 2 : cx + dx * k, y: box ? box.y + box.h - (unitOn.value && show.name ? 17 : 8) : cy + dy * k - (unitOn.value && show.name ? 3 : -4) }
   })
   return { boxes, now: build(GEO.now), old: build(GEO.old) }
 })
