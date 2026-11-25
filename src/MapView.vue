@@ -24,15 +24,17 @@
           <div class="head" :style="{ left: `${YEAR_W}px`, width: `${PRES_W}px` }"><b>總統</b></div>
           <div v-if="EV_W" class="head" :style="{ left: `${YEAR_W + PRES_W}px`, width: `${EV_W}px` }"><b>大事</b></div>
         </div>
-        <div ref="tbody" class="tbody" @pointerdown="onScrub" @pointermove="onScrub" @pointerup="endScrub" @pointercancel="endScrub" @mousemove="onPresHover" @mouseleave="tip?.sheet || (tip = null)">
-          <span v-for="y in ticks" :key="y" class="year" :title="y" :style="{ top: `${yy(y - Y0) * py}px`, width: `${YEAR_W}px` }">’{{ String(y).slice(2) }}</span>
+        <div ref="tbody" class="tbody" @pointerdown="onScrub" @pointermove="onScrub" @pointerup="endScrub" @pointercancel="endScrub" @mousemove="onAxisHover" @mouseleave="ghost = null, tip?.sheet || (tip = null)">
+          <span v-for="y in ticks" :key="y" class="year" :class="{ at: date.startsWith(`${y}-`) }" :title="`${y} 年`" :style="{ top: `${yy(y - Y0) * py}px`, width: `${YEAR_W}px` }">’{{ String(y).slice(2) }}</span>
           <div v-for="(p, i) in pres" :key="p.name" class="blk" :aria-label="p.tip" :data-p="i" :style="{ left: `${YEAR_W + 2}px`, width: `${PRES_W - 4}px`, top: `${top(p) * py}px`, height: `${p.h}px`, backgroundColor: COLOR[p.party] }">
             <i v-for="c in p.cuts" :key="c" class="cut" :style="{ top: `${cut(p, c) * py}px` }"></i>
             <span v-if="p.h >= 11"><b>{{ p.name }}</b><em v-if="!p.end" class="now">現任</em><small v-if="p.h >= 27">{{ dates(p)[0] }}</small><small v-if="p.h >= 36">{{ dates(p)[1] }}</small></span>
           </div>
           <svg v-if="EV_W" class="leads" :style="{ left: `${YEAR_W + PRES_W}px` }" width="12" height="1"><path v-for="e in events" :key="e.date + e.label" :class="e.kind" :d="`M1 ${e.p}L9 ${e.ly}`" /></svg>
-          <div v-for="e in (EV_W ? events : [])" :key="e.date + e.label" class="ev" :class="[e.kind, { past: e.date > date }]" :title="e.tip" :style="{ left: `${YEAR_W + PRES_W}px`, top: `${e.ly}px` }"><small>{{ ymd(e.date) }}</small>{{ e.label }}</div>
+          <div v-for="e in (EV_W ? events : [])" :key="e.date + e.label" class="ev" :class="[e.kind, { past: e.date > date, at: e.date === date }]" :data-d="e.date" :title="`${e.tip}（點一下跳到這一天）`" :style="{ left: `${YEAR_W + PRES_W}px`, top: `${e.ly}px` }"><small>{{ ymd(e.date) }}</small>{{ e.label }}</div>
           <!-- 選到的那一天 -->
+          <!-- 滑鼠移過去的預覽（點下去會選到這一天） -->
+          <div v-if="ghost" class="phead ghost" :style="{ top: `${Math.min(size.th - 1, ghost.y)}px` }"><span>{{ ghost.label }}</span></div>
           <div class="phead" :class="{ low: headY > size.th - 12, high: headY < 12 }" :style="{ top: `${Math.min(size.th - 1, headY)}px` }"><span>{{ ymd(date) }}</span></div>
         </div>
       </div>
@@ -231,10 +233,29 @@ function onScrub(e) {
     tbody.value.setPointerCapture(e.pointerId)
   }
   if (!scrubbing.value) return
-  const y = e.clientY - tbody.value.getBoundingClientRect().top
-  tv.value = Math.min(Y1, Math.max(Y0, Y0 + yy(y / py.value)))
+  tv.value = pick(e).v
+  ghost.value = null
 }
 const endScrub = () => (scrubbing.value = false)
+// 游標在時間軸上的位置 → 會選到哪一天（v＝年，小數）：
+// ・在大事的字上：那件事的日期
+// ・在年份那一欄：整年（那一年的 1 月 1 日），拖的時候一年一年跳
+// ・其他（總統、空白）：游標的高度對到的那一天
+function pick(e) {
+  const r = tbody.value.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top
+  const ev = !scrubbing.value || e.type === 'pointerdown' ? e.target.closest?.('.ev[data-d]') : null
+  let v = ev ? yr(ev.dataset.d) : Y0 + yy(y / py.value)
+  if (!ev && x < YEAR_W) v = Math.round(v)
+  return { v: Math.min(Y1, Math.max(Y0, v)), snap: !!ev || x < YEAR_W }
+}
+// 滑鼠移過時間軸：一條淡淡的線＋日期，預覽點下去會選到哪一天
+const ghost = ref(null)
+function onAxisHover(e) {
+  onPresHover(e)
+  if (scrubbing.value) return (ghost.value = null)
+  const { v } = pick(e)
+  ghost.value = { y: yy(v - Y0) * py.value, label: ymd(v >= Y1 ? H.asOf : fromYr(v)) }
+}
 
 // ── 地圖
 // 兩份界線：現在的 22 縣市；2010-12-25 縣市合併前的（臺中、臺南、高雄拆回縣、市）。離本島太遠的小島（東沙、南沙、釣魚臺、烏坵）不畫
@@ -327,7 +348,7 @@ const shapes = computed(() => {
     const sub = (s.county === '新竹市' || s.county === '嘉義市') && d < CITY_SINCE
     const run = sub ? runAt(`${s.county.slice(0, 2)}縣`, d) : runAt(s.county, d, s.unit)
     const c = run ? (show.color ? colorOf(run) : plain()) : vacant() // 不顯示政黨色＝灰；沒有首長（出缺、維基沒資料）＝底色（theme.js）
-    return { ...s, sub, run, fill: run?.acting ? dim(c) : c, unit: run?.unit ?? s.name, tag: run ? termTags(run).filter((g) => g !== '現任').join('・') : '', ring: run ? colorOf(run) : VACANT }
+    return { ...s, sub, run, fill: run?.acting ? dim(c) : c, unit: run?.unit ?? s.name, tag: run ? termTags(run).filter((g) => g !== '現任').join('・') : '', ring: run ? colorOf(run) : vacant() }
   })
 })
 // 字（和照片）排位置：每個縣市的字佔一個方框（照片在上、縣市名、首長名），從原本的位置（縣市裡面）出發，
@@ -447,6 +468,12 @@ onBeforeUnmount(() => {
 .tbody { flex: 1; min-height: 0; position: relative; overflow: hidden; cursor: ns-resize; touch-action: none; }
 .tbody .blk { cursor: ns-resize; }
 .taxis.scrubbing .blk { transition: none; transform: none; filter: none; box-shadow: none; }
+.tbody .ev { cursor: pointer; border-radius: 4px; }
+.tbody .ev:hover, .tbody .ev.at { background: rgba(var(--fg), 0.1); }
+.tbody .year { cursor: pointer; }
+.tbody .year.at { color: var(--text); font-weight: 700; } /* 選到的那一年 */
+.phead.ghost { z-index: 2; border-top: 1px dashed var(--muted); filter: none; }
+.phead.ghost span { background: var(--elev); color: var(--text); box-shadow: 0 0 0 1px var(--line); font-weight: 600; }
 .ev.past { opacity: 0.4; } /* 還沒發生的大事：淡掉 */
 /* 選到的那一天：一條橫線＋日期 */
 .phead { position: absolute; left: 0; right: 0; z-index: 3; height: 0; border-top: 2px solid var(--accent); pointer-events: none; filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.8)); }
